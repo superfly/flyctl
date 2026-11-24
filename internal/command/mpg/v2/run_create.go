@@ -13,12 +13,14 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 type CreateClusterParams struct {
 	Name           string
 	OrgSlug        string
+	OrgID          uint64
 	Plan           string
 	StorageInGb    int
 	PGMajorVersion int
@@ -121,6 +123,7 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 		PostGISEnabled: params.PostGISEnabled,
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, params.OrgID)
 	cluster, err := tracing.WorkflowStep(ctx, "request_cluster", func(ctx context.Context) (flaps.ManagedPostgresCluster, error) {
 		return flapsClient.CreateManagedPostgresCluster(ctx, createReq)
 	})

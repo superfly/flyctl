@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/requestauth"
 )
 
 func newDeploy() (cmd *cobra.Command) {
@@ -44,6 +45,7 @@ func runDeploy(ctx context.Context) (err error) {
 		return err
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx, appName)
 	if err != nil {
 		return err

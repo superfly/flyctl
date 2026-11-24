@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -140,7 +143,9 @@ func (e assertErr) Error() string { return string(e) }
 
 func TestDeployMachinesApp(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
-	client := &mockFlapsClient{}
+	var checks atomic.Int32
+	assertOrg := authtest.Organization(t, 7)
+	client := &mockFlapsClient{checkRequest: func(ctx context.Context) { assertOrg(ctx); checks.Add(1) }}
 	webClient := &mock.Client{
 		GetAppLogsFunc: func(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error) {
 			return nil, "", nil
@@ -153,7 +158,12 @@ func TestDeployMachinesApp(t *testing.T) {
 		{ID: "m4", LeaseNonce: "m4-lease", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
 	}
 	md := &machineDeployment{
-		app:             &flaps.App{},
+		app:           &flaps.App{Organization: flaps.AppOrganizationInfo{InternalNumericID: 7}},
+		skipDNSChecks: true,
+		uiexClient: &mock.UiexClient{UpdateReleaseFunc: func(ctx context.Context, _ string, _ string, _ any) (*uiex.Release, error) {
+			assertOrg(ctx)
+			return &uiex.Release{}, nil
+		}},
 		io:              ios,
 		colorize:        ios.ColorScheme(),
 		flapsClient:     client,
@@ -171,8 +181,9 @@ func TestDeployMachinesApp(t *testing.T) {
 	ctx := context.Background()
 	ctx = iostreams.NewContext(ctx, ios)
 	ctx = flapsutil.NewContextWithClient(ctx, client)
-	err := md.deployMachinesApp(ctx)
+	err := md.DeployMachinesApp(ctx)
 	assert.NoError(t, err)
+	require.Positive(t, checks.Load())
 }
 
 func TestVolumePlacementCapacitySuggestion(t *testing.T) {
@@ -197,6 +208,58 @@ func TestVolumePlacementCapacitySuggestion(t *testing.T) {
 
 		require.Same(t, err, withVolumePlacementCapacitySuggestion(err))
 	})
+}
+
+func TestFirstDeployProvisioningUsesAppOrganization(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName: "first-deploy", PrimaryRegion: "iad",
+		Services: []appconfig.Service{{Protocol: "tcp", InternalPort: 8080}},
+		Mounts:   []appconfig.Mount{{Source: "data", Destination: "/data"}},
+	})
+	require.NoError(t, err)
+	md.app.Organization.InternalNumericID = 7
+	md.io, _, _, _ = iostreams.Test()
+	md.colorize = md.io.ColorScheme()
+	md.isFirstDeploy = true
+	check := authtest.Organization(t, 7)
+	var calls []string
+	md.flapsClient = &mock.FlapsClient{
+		GetIPAssignmentsFunc: func(ctx context.Context, _ string) (*flaps.ListIPAssignmentsResponse, error) {
+			check(ctx)
+			calls = append(calls, "list")
+			return &flaps.ListIPAssignmentsResponse{}, nil
+		},
+		AssignIPFunc: func(ctx context.Context, _ string, req flaps.AssignIPRequest) (*flaps.AssignIPResponse, error) {
+			check(ctx)
+			calls = append(calls, string(req.Type))
+			return &flaps.AssignIPResponse{IP: new("test-ip")}, nil
+		},
+		CreateVolumeFunc: func(ctx context.Context, _ string, req fly.CreateVolumeRequest) (*fly.Volume, error) {
+			check(ctx)
+			calls = append(calls, req.Name)
+			return &fly.Volume{}, nil
+		},
+	}
+	require.NoError(t, md.provisionFirstDeploy(t.Context(), "shared", "test-org"))
+	require.Equal(t, []string{"list", string(flaps.IPAssignmentTypeV6), string(flaps.IPAssignmentTypeSharedV4), "data"}, calls)
+}
+
+func TestRestartUsesScopedLatestReleaseImage(t *testing.T) {
+	check := authtest.Organization(t, 7)
+	ios, _, _, _ := iostreams.Test()
+	client := &mockFlapsClient{}
+	md := &machineDeployment{
+		restartOnly: true, app: &flaps.App{Name: "restart", Organization: flaps.AppOrganizationInfo{InternalNumericID: 7}},
+		machineSet: machine.NewMachineSet(client, ios, "restart", []*fly.Machine{{ID: "old", Config: &fly.MachineConfig{Image: "older-image"}}}, false),
+		uiexClient: &mock.UiexClient{ListReleasesFunc: func(ctx context.Context, app string, count int) ([]uiex.Release, error) {
+			check(ctx)
+			require.Equal(t, "restart", app)
+			require.Equal(t, 1, count)
+			return []uiex.Release{{ImageRef: "latest-image"}}, nil
+		}},
+	}
+	require.NoError(t, md.setImg(t.Context()))
+	require.Equal(t, "latest-image", md.img)
 }
 
 func TestSingleMachineHint(t *testing.T) {
