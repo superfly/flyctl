@@ -26,8 +26,8 @@ func maintenanceWindowTestContext(t *testing.T, jsonOutput bool, client *mock.Fl
 	return flapsutil.NewContextWithClient(ctx, client), stdout
 }
 
-func sampleMaintenanceWindow() flaps.ManagedPostgresMaintenanceWindow {
-	return flaps.ManagedPostgresMaintenanceWindow{
+func sampleMaintenanceWindow() *flaps.ManagedPostgresMaintenanceWindow {
+	return &flaps.ManagedPostgresMaintenanceWindow{
 		Day:           "sunday",
 		StartHour:     1,
 		DurationHours: 3,
@@ -47,7 +47,7 @@ func requireMaintenanceWindowTable(t *testing.T, output string, day, start, dura
 
 func TestRunMaintenanceWindowShowHuman(t *testing.T) {
 	ctx, stdout := maintenanceWindowTestContext(t, false, &mock.FlapsClient{
-		GetManagedPostgresMaintenanceWindowFunc: func(_ context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error) {
+		GetManagedPostgresMaintenanceWindowFunc: func(_ context.Context, id string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 			require.Equal(t, "mpg-123", id)
 
 			return sampleMaintenanceWindow(), nil
@@ -60,7 +60,7 @@ func TestRunMaintenanceWindowShowHuman(t *testing.T) {
 
 func TestRunMaintenanceWindowShowJSON(t *testing.T) {
 	ctx, stdout := maintenanceWindowTestContext(t, true, &mock.FlapsClient{
-		GetManagedPostgresMaintenanceWindowFunc: func(context.Context, string) (flaps.ManagedPostgresMaintenanceWindow, error) {
+		GetManagedPostgresMaintenanceWindowFunc: func(context.Context, string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 			return sampleMaintenanceWindow(), nil
 		},
 	})
@@ -76,17 +76,39 @@ func TestRunMaintenanceWindowShowJSON(t *testing.T) {
 	}, got)
 }
 
+func TestRunMaintenanceWindowShowAnyTime(t *testing.T) {
+	ctx, stdout := maintenanceWindowTestContext(t, false, &mock.FlapsClient{
+		GetManagedPostgresMaintenanceWindowFunc: func(context.Context, string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
+			return nil, nil
+		},
+	})
+
+	require.NoError(t, RunMaintenanceWindowShow(ctx, "mpg-123"))
+	require.Equal(t, "Maintenance can run at any time on cluster mpg-123.\n", stdout.String())
+}
+
+func TestRunMaintenanceWindowShowAnyTimeJSON(t *testing.T) {
+	ctx, stdout := maintenanceWindowTestContext(t, true, &mock.FlapsClient{
+		GetManagedPostgresMaintenanceWindowFunc: func(context.Context, string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
+			return nil, nil
+		},
+	})
+
+	require.NoError(t, RunMaintenanceWindowShow(ctx, "mpg-123"))
+	require.Equal(t, "null\n", stdout.String())
+}
+
 func TestRunMaintenanceWindowSetSendsRequestAndPrintsUpdatedWindow(t *testing.T) {
 	day := "saturday"
 	hour := 0
 	req := flaps.UpdateManagedPostgresMaintenanceWindowRequest{Day: &day, StartHour: &hour}
 
 	ctx, stdout := maintenanceWindowTestContext(t, false, &mock.FlapsClient{
-		UpdateManagedPostgresMaintenanceWindowFunc: func(_ context.Context, id string, got flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
+		UpdateManagedPostgresMaintenanceWindowFunc: func(_ context.Context, id string, got flaps.UpdateManagedPostgresMaintenanceWindowRequest) (*flaps.ManagedPostgresMaintenanceWindow, error) {
 			require.Equal(t, "mpg-123", id)
 			require.Equal(t, req, got)
 
-			return flaps.ManagedPostgresMaintenanceWindow{Day: "saturday", StartHour: 0, DurationHours: 4, Timezone: "Europe/Paris"}, nil
+			return &flaps.ManagedPostgresMaintenanceWindow{Day: "saturday", StartHour: 0, DurationHours: 4, Timezone: "Europe/Paris"}, nil
 		},
 	})
 
@@ -99,8 +121,8 @@ func TestRunMaintenanceWindowSetSendsRequestAndPrintsUpdatedWindow(t *testing.T)
 func TestRunMaintenanceWindowSetJSONPrintsOnlyTheWindow(t *testing.T) {
 	duration := 8
 	ctx, stdout := maintenanceWindowTestContext(t, true, &mock.FlapsClient{
-		UpdateManagedPostgresMaintenanceWindowFunc: func(context.Context, string, flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
-			return flaps.ManagedPostgresMaintenanceWindow{Day: "monday", StartHour: 23, DurationHours: 8, Timezone: "UTC"}, nil
+		UpdateManagedPostgresMaintenanceWindowFunc: func(context.Context, string, flaps.UpdateManagedPostgresMaintenanceWindowRequest) (*flaps.ManagedPostgresMaintenanceWindow, error) {
+			return &flaps.ManagedPostgresMaintenanceWindow{Day: "monday", StartHour: 23, DurationHours: 8, Timezone: "UTC"}, nil
 		},
 	})
 
@@ -162,8 +184,8 @@ func TestMaintenanceWindowErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, stdout := maintenanceWindowTestContext(t, false, &mock.FlapsClient{
-				UpdateManagedPostgresMaintenanceWindowFunc: func(context.Context, string, flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
-					return flaps.ManagedPostgresMaintenanceWindow{}, test.err
+				UpdateManagedPostgresMaintenanceWindowFunc: func(context.Context, string, flaps.UpdateManagedPostgresMaintenanceWindowRequest) (*flaps.ManagedPostgresMaintenanceWindow, error) {
+					return nil, test.err
 				},
 			})
 
@@ -182,8 +204,8 @@ func TestMaintenanceWindowErrors(t *testing.T) {
 
 func TestRunMaintenanceWindowShowErrors(t *testing.T) {
 	ctx, stdout := maintenanceWindowTestContext(t, false, &mock.FlapsClient{
-		GetManagedPostgresMaintenanceWindowFunc: func(context.Context, string) (flaps.ManagedPostgresMaintenanceWindow, error) {
-			return flaps.ManagedPostgresMaintenanceWindow{}, apiError("get", 409, `{"error":"cluster is not ready"}`)
+		GetManagedPostgresMaintenanceWindowFunc: func(context.Context, string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
+			return nil, apiError("get", 409, `{"error":"cluster is not ready"}`)
 		},
 	})
 

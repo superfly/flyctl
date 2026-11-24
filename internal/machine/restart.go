@@ -2,10 +2,13 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
@@ -21,6 +24,9 @@ func Restart(ctx context.Context, appName string, m *fly.Machine, input *fly.Res
 	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(m.ID))
 	input.ID = m.ID
 	if err := flapsClient.Restart(ctx, appName, *input, nonce); err != nil {
+		if errors.Is(err, &flaps.FlapsError{ResponseStatusCode: http.StatusRequestTimeout}) {
+			return fmt.Errorf("restart request timed out before flyctl could confirm the outcome: %w", err)
+		}
 		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
 	}
 

@@ -39,7 +39,8 @@ func newMaintenanceWindowShow() *cobra.Command {
 	const (
 		long = `Show the weekly maintenance window of a Managed Postgres cluster: the day
 it starts, the start hour in the cluster's regional timezone, and how many
-hours it lasts. Use --json for machine-readable output.
+hours it lasts. Some clusters have no window: their maintenance can run at
+any time. For them it prints that, or null with --json.
 
 With no cluster ID, you pick an organization and a cluster from a list in a
 terminal; without a terminal, the cluster ID is required. To change the

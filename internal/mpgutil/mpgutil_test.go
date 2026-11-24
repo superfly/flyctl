@@ -8,7 +8,8 @@ import (
 )
 
 func TestConnectionURI(t *testing.T) {
-	var cluster flaps.ManagedPostgresCluster
+	cluster := flaps.ManagedPostgresCluster{Plan: "basic"}
+	cluster.Endpoints.Primary.Direct = flaps.ManagedPostgresEndpoint{Host: "direct.test", Port: DefaultPort}
 
 	// A non-default port is kept, so the URI stays correct if the pooler ever
 	// moves off 5432.
@@ -23,4 +24,8 @@ func TestConnectionURI(t *testing.T) {
 	// treated as the default too.
 	cluster.Endpoints.Primary.Pooler.Port = 0
 	require.Equal(t, "postgresql://fly-user:s3cret@pooler.test/fly-db", ConnectionURI(cluster, "s3cret"))
+
+	// Apps on the Developer plan get the direct endpoint, not the pooler.
+	cluster.Plan = "dev-256"
+	require.Equal(t, "postgresql://fly-user:s3cret@direct.test/fly-db", ConnectionURI(cluster, "s3cret"))
 }

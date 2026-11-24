@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -56,7 +57,7 @@ You can stop waiting with Ctrl+C; the cluster keeps provisioning. Then use
 		},
 		flag.String{
 			Name:        "plan",
-			Description: "The plan to use for the Postgres cluster: Basic, Starter, Launch, Scale, Performance",
+			Description: "The plan to use for the Postgres cluster: " + planNames(),
 		},
 		flag.Int{
 			Name:        "volume-size",
@@ -69,8 +70,8 @@ You can stop waiting with Ctrl+C; the cluster keeps provisioning. Then use
 		},
 		flag.Int{
 			Name:        "pg-major-version",
-			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are 16 and 17.",
-			Default:     16,
+			Description: "The major version of Postgres to use for the Postgres cluster. Supported versions are " + mpgutil.SupportedPGMajorVersionsText() + ".",
+			Default:     mpgutil.DefaultPGMajorVersion,
 		},
 	)
 
@@ -117,8 +118,8 @@ func runCreate(ctx context.Context) error {
 	}
 
 	pgMajorVersion := flag.GetInt(ctx, "pg-major-version")
-	if pgMajorVersion != 16 && pgMajorVersion != 17 {
-		return fmt.Errorf("invalid Postgres major version: %d. Supported versions are 16 and 17", pgMajorVersion)
+	if err := mpgutil.ValidatePGMajorVersion(pgMajorVersion); err != nil {
+		return err
 	}
 
 	// Plan selection and validation
@@ -136,9 +137,6 @@ func runCreate(ctx context.Context) error {
 			}
 			var planEntries []planEntry
 			for k, v := range MPGPlans {
-				if v.Hidden {
-					continue
-				}
 				planEntries = append(planEntries, planEntry{Key: k, Value: v})
 			}
 			// Sort by price
@@ -152,8 +150,11 @@ func runCreate(ctx context.Context) error {
 				planOptions = append(planOptions, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", entry.Value.Name, entry.Value.CPU, entry.Value.Memory, entry.Value.PricePerMo))
 				planKeys = append(planKeys, entry.Key)
 			}
+			// Developer is listed first, as the cheapest, but Basic stays the
+			// default, as it is without a terminal.
+			defaultOption := planOptions[slices.Index(planKeys, "basic")]
 			var selectedIndex int
-			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", planOptions[0], planOptions...); err != nil {
+			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", defaultOption, planOptions...); err != nil {
 				return err
 			}
 			plan = planKeys[selectedIndex]
@@ -192,13 +193,13 @@ func runCreate(ctx context.Context) error {
 	})
 }
 
-// planKey returns the MPGPlans key for a plan name given in any case. The keys
-// are what the API expects, so "performance" has to find "Performance" (#4612)
-// rather than be lowercased.
+// planKey returns the MPGPlans key for a plan given by its key or its name
+// (Developer for dev-256), in any case. The keys are what the API expects, so
+// "performance" has to find "Performance" (#4612) rather than be lowercased.
 func planKey(name string) (string, bool) {
 	name = strings.TrimSpace(name)
-	for key := range MPGPlans {
-		if strings.EqualFold(key, name) {
+	for key, details := range MPGPlans {
+		if strings.EqualFold(key, name) || strings.EqualFold(details.Name, name) {
 			return key, true
 		}
 	}
@@ -206,8 +207,7 @@ func planKey(name string) (string, bool) {
 	return "", false
 }
 
-// planNames lists the plans that aren't hidden, cheapest first, as --plan's
-// help does.
+// planNames lists the plans, cheapest first, by the names --plan takes.
 func planNames() string {
 	keys := slices.SortedFunc(maps.Keys(MPGPlans), func(a, b string) int {
 		return cmp.Compare(MPGPlans[a].PricePerMo, MPGPlans[b].PricePerMo)
@@ -215,10 +215,13 @@ func planNames() string {
 
 	names := make([]string, 0, len(keys))
 	for _, key := range keys {
-		if MPGPlans[key].Hidden {
-			continue
+		// A plan whose name isn't its key, like Developer (dev-256), is
+		// listed by its key, capitalized like the others: Dev-256.
+		name := MPGPlans[key].Name
+		if !strings.EqualFold(name, key) {
+			name = strings.ToUpper(key[:1]) + key[1:]
 		}
-		names = append(names, MPGPlans[key].Name)
+		names = append(names, name)
 	}
 
 	return strings.Join(names, ", ")
