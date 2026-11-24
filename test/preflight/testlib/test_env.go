@@ -5,6 +5,7 @@ package testlib
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -288,10 +289,11 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	cmd.Stderr = testIostreams.ErrOut
 	start := time.Now()
 	err = cmd.Start()
-	if err != nil {
+	if err == nil {
+		err = cmd.Wait()
+	} else if !errors.Is(err, ctx.Err()) {
 		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
 	}
-	err = cmd.Wait()
 	res.duration = time.Since(start)
 	if err != nil && ctx.Err() != nil {
 		if !cfg.NoAssertDeadline {

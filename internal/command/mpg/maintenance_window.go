@@ -21,7 +21,8 @@ func newMaintenanceWindow() *cobra.Command {
 	const (
 		short = "Show or change a cluster's weekly maintenance window"
 		long  = `Show or change the weekly window during which a Managed Postgres cluster
-may undergo maintenance. Times are in the cluster's regional timezone.`
+may undergo maintenance. Times are in the cluster's regional timezone. Not
+available for v1 clusters.`
 	)
 
 	cmd := command.New("maintenance-window", short, long, nil)
@@ -37,8 +38,16 @@ may undergo maintenance. Times are in the cluster's regional timezone.`
 
 func newMaintenanceWindowShow() *cobra.Command {
 	const (
-		long  = `Show the weekly maintenance window of a Managed Postgres cluster.`
-		short = "Show an MPG cluster's maintenance window."
+		long = `Show the weekly maintenance window of a Managed Postgres cluster: the day
+it starts, the start hour in the cluster's regional timezone, and how many
+hours it lasts. Some clusters have no window: their maintenance can run at
+any time. For them it prints that, or null with --json.
+
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required. To change the window, run ` + "`fly mpg maintenance-window set`" + `. Not
+available for v1 clusters.`
+		short = "Show a Managed Postgres cluster's maintenance window"
 		usage = "show [CLUSTER_ID]"
 	)
 
@@ -66,10 +75,14 @@ func runMaintenanceWindowShow(ctx context.Context) error {
 func newMaintenanceWindowSet() *cobra.Command {
 	const (
 		long = `Change the weekly maintenance window of a Managed Postgres cluster.
-Only the flags you pass are changed; the rest of the window keeps its current
-value. The start hour is in the cluster's regional timezone, shown by
-'fly mpg maintenance-window show'.`
-		short = "Change an MPG cluster's maintenance window."
+Pass at least one of --day, --start-hour and --duration; the rest of the
+window keeps its current value. The start hour is in the cluster's regional
+timezone, shown by ` + "`fly mpg maintenance-window show`" + `.
+
+With no cluster ID, you pick an organization (unless FLY_ORG is set) and a
+cluster from lists in a terminal; without a terminal, the cluster ID is
+required. Not available for v1 clusters.`
+		short = "Change a Managed Postgres cluster's maintenance window"
 		usage = "set [CLUSTER_ID]"
 	)
 

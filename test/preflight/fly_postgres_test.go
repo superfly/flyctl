@@ -329,8 +329,7 @@ func TestPostgres_haConfigSave(t *testing.T) {
 
 	f.Fly("status -a %s", appName)
 	f.Fly("config save -a %s", appName)
-	ml := f.MachinesList(appName)
-	require.Equal(f, 3, len(ml))
+	ml := f.WaitForMachineCount(appName, 3)
 	require.Equal(f, "shared-cpu-1x", ml[0].Config.Guest.ToSize())
 	f.Fly("config validate")
 }

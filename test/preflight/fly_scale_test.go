@@ -113,8 +113,7 @@ primary_region = "%s"
 	`, appName, f.PrimaryRegion())
 
 	f.Fly("deploy --buildkit --remote-only --ha=false")
-	ml := f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
+	ml := f.WaitForMachineCount(appName, 1)
 
 	// Extend the volume because if not found, scaling will default to 1GB.
 	f.Fly("volume extend %s --size 4 --app %s", ml[0].Config.Mounts[0].Volume, appName)

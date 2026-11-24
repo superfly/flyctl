@@ -15,7 +15,6 @@ import (
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -38,6 +37,9 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+// standbyForDeprecation is what --standby-for prints when it is used.
+const standbyForDeprecation = "it is ignored, except that an empty value on 'fly machine update' clears the setting"
 
 var sharedFlags = flag.Set{
 	flag.App(),
@@ -142,7 +144,8 @@ var sharedFlags = flag.Set{
 	},
 	flag.StringSlice{
 		Name:        "standby-for",
-		Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
+		Description: "Deprecated. An empty value on 'fly machine update' clears the setting.",
+		Hidden:      true,
 	},
 	flag.StringArray{
 		Name:        "file-local",
@@ -291,6 +294,7 @@ func newRun() *cobra.Command {
 	cmd.Args = cobra.MinimumNArgs(0)
 
 	_ = cmd.Flags().MarkDeprecated("cachedrive-size", "use --cache-disk-size instead")
+	_ = cmd.Flags().MarkDeprecated("standby-for", standbyForDeprecation)
 
 	return cmd
 }
@@ -317,6 +321,7 @@ func newCreate() *cobra.Command {
 	cmd.Args = cobra.MinimumNArgs(1)
 
 	_ = cmd.Flags().MarkDeprecated("cachedrive-size", "use --cache-disk-size instead")
+	_ = cmd.Flags().MarkDeprecated("standby-for", standbyForDeprecation)
 
 	return cmd
 }
@@ -930,12 +935,7 @@ func determineMachineConfig(
 		}
 	}
 
-	// Standby machine
-	if flag.IsSpecified(ctx, "standby-for") {
-		standbys := flag.GetStringSlice(ctx, "standby-for")
-		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
-		machineConf.Env["FLY_STANDBY_FOR"] = strings.Join(standbys, ",")
-	}
+	applyStandbyForFlag(ctx, machineConf)
 
 	machineFiles, err := command.FilesFromCommand(ctx)
 	if err != nil {
@@ -944,4 +944,15 @@ func determineMachineConfig(
 	fly.MergeFiles(machineConf, machineFiles)
 
 	return machineConf, nil
+}
+
+// applyStandbyForFlag handles the deprecated --standby-for. The flag never
+// makes a Machine a standby; its empty form turns a Machine that already is
+// one into a regular Machine.
+func applyStandbyForFlag(ctx context.Context, machineConf *fly.MachineConfig) {
+	if !flag.IsSpecified(ctx, "standby-for") || len(flag.GetStringSlice(ctx, "standby-for")) > 0 {
+		return
+	}
+	machineConf.Standbys = nil
+	delete(machineConf.Env, "FLY_STANDBY_FOR")
 }

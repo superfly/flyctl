@@ -247,7 +247,11 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		lm.logStatusWaiting(ctx, desiredState)
 	}
 	for {
-		err := lm.flapsClient.Wait(waitCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout))
+		// The API long-polls for at most a minute. Allow time for the response,
+		// then retry a stalled read within the caller's original wait budget.
+		readCtx, cancelRead := context.WithTimeout(waitCtx, 70*time.Second)
+		err := lm.flapsClient.Wait(readCtx, lm.appName, lm.Machine().ID, flaps.WithWaitStates(desiredState), flaps.WithWaitTimeout(timeout))
+		cancelRead()
 		notFoundResponse := isNotFoundErr(err)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
