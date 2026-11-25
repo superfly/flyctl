@@ -472,23 +472,42 @@ func testDeployDetachBatching(t *testing.T) {
 	// With auto-stop on, the proxy stops these idle machines and deploy
 	// leaves them stopped, so they would never reach "started".
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --auto-stop off", f.OrgSlug(), appName, f.PrimaryRegion())
-	f.Fly("scale count 6 --yes")
+	const count = 6
+	f.Fly("scale count %d --yes", count)
 
-	ml := f.MachinesList(appName)
-	require.GreaterOrEqual(f, len(ml), 1)
-	m := ml[0]
-	waitMachineStarted(f, m.ID)
+	var pending []string
+	t.Cleanup(func() {
+		for _, id := range pending {
+			status := f.FlyBestEffort(5*time.Second, "machine status %s --app %s", id, appName)
+			t.Logf("machine %s status (exit %d):\n%s%s", id, status.ExitCode(), status.StdOutString(), status.StdErrString())
+		}
+	})
+	waitStarted := func(updated bool) {
+		f.WaitForMachines(appName, func(t assert.TestingT, machines []*fly.Machine) {
+			pending = pending[:0]
+			assert.Len(t, machines, count)
+			for _, m := range machines {
+				started := assert.Equal(t, "started", m.State, "machine %s", m.ID)
+				matches := true
+				if updated {
+					matches = assert.NotNil(t, m.Config, "machine %s", m.ID) &&
+						assert.Equal(t, "updated", m.Config.Env["PREFLIGHT_BATCH"], "machine %s", m.ID)
+				}
+				if !started || !matches {
+					pending = append(pending, m.ID)
+				}
+			}
+		})
+	}
+	waitStarted(false)
 
-	res := f.Fly("deploy --detach")
-	require.NotContains(f, res.StdOutString(), "started", false)
-
-	ml = f.MachinesList(appName)
-	require.GreaterOrEqual(f, len(ml), 1)
-	m = ml[0]
-	waitMachineStarted(f, m.ID)
+	// The marker identifies the detached update even if deploy replaced a Machine.
+	res := f.Fly("deploy --detach --env PREFLIGHT_BATCH=updated")
+	require.NotContains(f, res.StdOutString(), "started")
+	waitStarted(true)
 
 	res = f.Fly("deploy")
-	require.Contains(f, res.StdOutString(), "started", false)
+	require.Contains(f, res.StdOutString(), "started")
 }
 
 func TestErrOutput(t *testing.T) {
