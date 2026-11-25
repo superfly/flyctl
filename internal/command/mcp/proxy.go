@@ -151,6 +151,22 @@ func runProxy(ctx context.Context) error {
 	return runProxyOrInspect(ctx, proxyInfo, flag.GetBool(ctx, "inspector"))
 }
 
+// entryArg returns the value of a flag in the args of an MCP client
+// configuration entry. The user and password are read this way rather than in
+// configExtract, whose result `fly mcp list` prints.
+func entryArg(entry map[string]any, name string) string {
+	args, _ := entry["args"].([]any)
+	for i, arg := range args {
+		if arg == name && i+1 < len(args) {
+			value, _ := args[i+1].(string)
+
+			return value
+		}
+	}
+
+	return ""
+}
+
 func runInspect(ctx context.Context) error {
 	proxyInfo := getInfo(ctx)
 
@@ -172,10 +188,10 @@ func runInspect(ctx context.Context) error {
 			proxyInfo.BearerToken, _ = mcpConfig["bearer-token"].(string)
 		}
 		if proxyInfo.User == "" {
-			proxyInfo.User, _ = mcpConfig["user"].(string)
+			proxyInfo.User = entryArg(mcpConfig, "--user")
 		}
 		if proxyInfo.Password == "" {
-			proxyInfo.Password, _ = mcpConfig["password"].(string)
+			proxyInfo.Password = entryArg(mcpConfig, "--password")
 		}
 	} else if len(configPaths) > 1 {
 		return fmt.Errorf("multiple MCP client configuration files specified. Please specify at most one")

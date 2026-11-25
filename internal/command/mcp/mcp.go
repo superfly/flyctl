@@ -41,7 +41,8 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func flyctl(args ...string) error {
+// flyctl runs this executable with args. It's a variable so tests can replace it.
+var flyctl = func(args ...string) error {
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to find executable: %w", err)

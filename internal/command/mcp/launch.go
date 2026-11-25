@@ -129,6 +129,17 @@ func runLaunch(ctx context.Context) error {
 
 	image := flag.GetString(ctx, "image")
 
+	// These paths are relative to the directory the user ran the command in, so
+	// resolve them before changing directory below.
+	configs, err := absoluteConfigs(flag.GetStringArray(ctx, "config"))
+	if err != nil {
+		return err
+	}
+	localFiles, err := absoluteLocalFiles(flag.GetStringArray(ctx, "file-local"))
+	if err != nil {
+		return err
+	}
+
 	// Parse the command
 	command := flag.FirstArg(ctx)
 	cmdParts, err := shlex.Split(command)
@@ -221,7 +232,7 @@ func runLaunch(ctx context.Context) error {
 
 	args := []string{"launch", "--yes", "--no-deploy"}
 
-	if cmdParts[0] == "go" && image == "" {
+	if len(cmdParts) > 0 && cmdParts[0] == "go" && image == "" {
 		image = "golang:latest"
 	}
 
@@ -331,7 +342,7 @@ func runLaunch(ctx context.Context) error {
 		}
 	}
 
-	for _, config := range flag.GetStringArray(ctx, "config") {
+	for _, config := range configs {
 		if config != "" {
 			log.Debugf("Adding %s to MCP client configuration", config)
 			args = append(args, "--config", config)
@@ -393,7 +404,7 @@ func runLaunch(ctx context.Context) error {
 
 	args = []string{"deploy", "--ha=false"}
 
-	for _, file := range flag.GetStringArray(ctx, "file-local") {
+	for _, file := range localFiles {
 		if file != "" {
 			args = append(args, "--file-local", file)
 		}
@@ -448,4 +459,39 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// absoluteConfigs makes each path absolute, leaving empty ones as they are.
+func absoluteConfigs(paths []string) ([]string, error) {
+	out := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if path != "" {
+			abs, err := filepath.Abs(path)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get absolute path for %s: %w", path, err)
+			}
+			path = abs
+		}
+		out = append(out, path)
+	}
+
+	return out, nil
+}
+
+// absoluteLocalFiles makes the local path of each /path/inside/machine=<local/path>
+// pair absolute. Anything else is left for `fly deploy` to handle.
+func absoluteLocalFiles(files []string) ([]string, error) {
+	out := make([]string, 0, len(files))
+	for _, file := range files {
+		if guest, local, ok := strings.Cut(file, "="); ok && local != "" {
+			abs, err := filepath.Abs(local)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get absolute path for %s: %w", local, err)
+			}
+			file = guest + "=" + abs
+		}
+		out = append(out, file)
+	}
+
+	return out, nil
 }

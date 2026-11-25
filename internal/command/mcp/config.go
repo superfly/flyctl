@@ -139,8 +139,18 @@ func NewRemove() *cobra.Command {
 }
 
 func runAdd(ctx context.Context) error {
+	// Check this first, so a command that can't write an entry doesn't replace
+	// the app's secrets.
+	configPaths, err := ListConfigPaths(ctx, true)
+	if err != nil {
+		return err
+	} else if len(configPaths) == 0 {
+		return errors.New("no configuration paths found")
+	}
+
 	appConfig := appconfig.ConfigFromContext(ctx)
-	if appConfig == nil {
+	// An app named with --app wins over the one in fly.toml.
+	if app := flag.GetApp(ctx); appConfig == nil || (app != "" && app != appConfig.AppName) {
 		appName := appconfig.NameFromContext(ctx)
 		if appName == "" {
 			return errors.New("app name is required")
@@ -178,8 +188,8 @@ func runAdd(ctx context.Context) error {
 			if err != nil && !prompt.IsNonInteractive(err) {
 				return fmt.Errorf("failed to get password: %w", err)
 			}
-			args = append(args, "--password", password)
 		}
+		args = append(args, "--password", password)
 
 		if err := flyctl("secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password, "--app", appConfig.AppName); err != nil {
 			return fmt.Errorf("failed to set user/password secrets': %w", err)
@@ -198,13 +208,6 @@ func runAdd(ctx context.Context) error {
 		if err := flyctl("secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr, "--app", appConfig.AppName); err != nil {
 			return fmt.Errorf("failed to set bearer token secret': %w", err)
 		}
-	}
-
-	configPaths, err := ListConfigPaths(ctx, true)
-	if err != nil {
-		return err
-	} else if len(configPaths) == 0 {
-		return errors.New("no configuration paths found")
 	}
 
 	server := flag.GetString(ctx, "server")
@@ -422,8 +425,8 @@ func SelectServerAndConfig(ctx context.Context, configIsArray bool) (string, []C
 		return "", nil, errors.New("no configuration paths found")
 	} else if len(configPaths) > 1 && !configIsArray {
 		choices := make([]string, 0)
-		choiceMap := make(map[int]int)
-		for i, configPath := range configPaths {
+		choicePaths := make([]ConfigPath, 0)
+		for _, configPath := range configPaths {
 			if config, ok := serverMap[configPath.Path].(map[string]any); ok {
 				if servers, ok := config["mcpServers"].(map[string]any); ok && len(servers) > 0 {
 					if toolName, ok := config["toolName"].(string); ok {
@@ -431,7 +434,7 @@ func SelectServerAndConfig(ctx context.Context, configIsArray bool) (string, []C
 					} else {
 						choices = append(choices, configPath.Path)
 					}
-					choiceMap[i] = len(choices) - 1
+					choicePaths = append(choicePaths, configPath)
 				}
 			}
 		}
@@ -442,9 +445,6 @@ func SelectServerAndConfig(ctx context.Context, configIsArray bool) (string, []C
 		} else if len(choices) > 1 {
 			switch err = prompt.Select(ctx, &index, "Select a configuration file", "", choices...); {
 			case err == nil:
-				if choiceIndex, ok := choiceMap[index]; ok {
-					index = choiceIndex
-				}
 			case prompt.IsNonInteractive(err):
 				return "", nil, prompt.NonInteractiveError("MCP client or config file must be specified when not running interactively")
 			default:
@@ -453,7 +453,10 @@ func SelectServerAndConfig(ctx context.Context, configIsArray bool) (string, []C
 
 		}
 
-		configPaths = []ConfigPath{configPaths[index]}
+		// Only offer the servers of the chosen configuration file.
+		selected := choicePaths[index]
+		configPaths = []ConfigPath{selected}
+		serverMap = map[string]any{selected.Path: serverMap[selected.Path]}
 	}
 
 	if server == "" {
