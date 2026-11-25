@@ -11,9 +11,9 @@ func New() *cobra.Command {
 		long  = `Manage the Fly Machines (VMs) that make up an app: list them, create and
 run new ones, change their configuration, and start, stop or destroy them.
 
-Most subcommands act on the app from ` + "`--app`" + ` or fly.toml. Commands that
-take machine IDs let you pick machines from a list when you run them in a
-terminal without IDs. Start with ` + "`fly machine list`" + ` or
+Most subcommands act on the app from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml.
+Commands that take machine IDs let you pick machines from a list when you
+run them in a terminal without IDs. Start with ` + "`fly machine list`" + ` or
 ` + "`fly machine run`" + `.`
 		usage = "machine <command>"
 	)

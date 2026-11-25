@@ -30,8 +30,9 @@ returns for each region. The defaults are a performance-1x guest and any region;
 ` + "`--count`" + `, ` + "`--region`" + `, the VM size flags and the volume flags to describe
 what you want to place.
 
-The organization comes from ` + "`--org`" + `, or from the app in ` + "`fly.toml`" + `. With
-neither, you pick an organization in a terminal.`
+The organization comes from ` + "`--org`" + ` or ` + "`FLY_ORG`" + `, or from the app set by
+` + "`FLY_APP`" + ` or ` + "`fly.toml`" + `. With none of these, you pick an organization in a
+terminal.`
 		short = "Simulate Machine placements"
 	)
 

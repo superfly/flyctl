@@ -19,8 +19,8 @@ import (
 func newList() *cobra.Command {
 	const (
 		short = "List Fly Machines"
-		long  = `List the Fly Machines of the app from ` + "`--app`" + ` or fly.toml, with each
-machine's state, region, image, size, health checks, volume and process
+		long  = `List the Fly Machines of the app from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml, with
+each machine's state, region, image, size, health checks, volume and process
 group. ` + "`--quiet`" + ` prints only machine IDs, and ` + "`--json`" + ` prints the full
 machine records.
 

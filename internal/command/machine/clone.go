@@ -34,8 +34,7 @@ clone, or one restored from a snapshot with ` + "`--from-snapshot`" + `; use
 ` + "`--attach-volume`" + ` to attach an existing unattached volume instead.
 
 The command waits for the new machine to start and pass its health checks,
-unless you pass ` + "`--detach`" + `. A clone made with ` + "`--standby-for`" + ` is created
-but not started.`
+unless you pass ` + "`--detach`" + `.`
 
 		usage = "clone [machine_id]"
 	)

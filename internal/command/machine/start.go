@@ -25,11 +25,14 @@ func newStart() *cobra.Command {
 	const (
 		short = "Start one or more Fly Machines"
 		long  = `Start one or more Fly Machines that aren't running. Pass machine IDs as
-arguments; the app is looked up from the first ID unless ` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it.
-With no IDs, you pick machines of the app from a list in a terminal;
-without a terminal, IDs are required.
+arguments; the app is looked up from the first ID unless ` + "`--app`" + `, ` + "`FLY_APP`" + `
+or ` + "`fly.toml`" + ` sets it. With no IDs, you pick machines of the app from a list
+in a terminal; without a terminal, IDs are required.
 
-The command returns once each start request is accepted. Use
+The command returns once each start request is accepted, unless you pass
+` + "`--wait`" + `, which waits up to five minutes for each machine to start and then
+for its health checks to pass. If a machine is still being created or is
+already starting, the command waits up to a minute for that either way. Use
 ` + "`fly machine wait`" + ` or ` + "`fly machine status`" + ` to follow the machine's state.`
 
 		usage = "start [<id>...]"

@@ -20,8 +20,8 @@ func newProxy() *cobra.Command {
 WireGuard tunnel into an organization's private network, so local tools
 can call the API. The proxy runs until you stop it.
 
-Without ` + "`--org`" + `, you pick an organization in a terminal; if you belong
-only to your personal organization, it's used automatically.`
+Without ` + "`--org`" + ` or ` + "`FLY_ORG`" + `, you pick an organization in a terminal; if you
+belong only to your personal organization, it's used automatically.`
 
 		usage = "api-proxy"
 	)

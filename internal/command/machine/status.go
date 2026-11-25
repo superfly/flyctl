@@ -25,10 +25,10 @@ func newStatus() *cobra.Command {
 events, in any state. With ` + "`--display-config`" + `, print only the machine's
 config as JSON.
 
-Pass a machine ID; the app is looked up from it unless ` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it.
-With no ID, you pick a machine of the app from a list in a terminal;
-without a terminal, the ID is required. To see all of an app's machines,
-use ` + "`fly machine list`" + `.`
+Pass a machine ID; the app is looked up from it unless ` + "`--app`" + `, ` + "`FLY_APP`" + ` or
+` + "`fly.toml`" + ` sets it. With no ID, you pick a machine of the app from a list in
+a terminal; without a terminal, the ID is required. To see all of an app's
+machines, use ` + "`fly machine list`" + `.`
 
 		usage = "status [id]"
 	)

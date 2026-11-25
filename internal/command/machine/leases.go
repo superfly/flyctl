@@ -46,11 +46,11 @@ remove it with
 func newLeaseView() *cobra.Command {
 	const (
 		short = "View machine leases"
-		long  = `Show the current lease on one or more Fly Machines: its nonce, status,
-owner and expiry. Machines without a lease are left out. Pass machine IDs
-as arguments; the app is looked up from the first ID unless ` + "`--app`" + ` or
-` + "`fly.toml`" + ` sets it. With no IDs, you pick machines of the app from a list in a
-terminal; without a terminal, IDs are required.`
+		long  = `Show the current lease on one or more Fly Machines: its nonce, status, owner
+and expiry. Machines without a lease are left out. Pass machine IDs as
+arguments; the app is looked up from the first ID unless ` + "`--app`" + `, ` + "`FLY_APP`" + `
+or ` + "`fly.toml`" + ` sets it. With no IDs, you pick machines of the app from a list
+in a terminal; without a terminal, IDs are required.`
 		usage = "view [machine-id]"
 	)
 
@@ -77,10 +77,10 @@ func newLeaseClear() *cobra.Command {
 		short = "Clear machine leases"
 		long  = `Release the current lease on one or more Fly Machines, whoever holds it,
 without a confirmation prompt. Use this when an interrupted command left a
-lease behind. Pass machine IDs as arguments; the app is looked
-up from the first ID unless ` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it. With no IDs, you pick
-machines of the app from a list in a terminal; without a terminal, IDs are
-required.
+lease behind. Pass machine IDs as arguments; the app is looked up from the
+first ID unless ` + "`--app`" + `, ` + "`FLY_APP`" + ` or ` + "`fly.toml`" + ` sets it. With no IDs, you
+pick machines of the app from a list in a terminal; without a terminal, IDs
+are required.
 
 Check leases first with ` + "`fly machine leases view`" + `.`
 		usage = "clear [machine-id]"

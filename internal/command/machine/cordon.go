@@ -18,8 +18,8 @@ func newMachineCordon() *cobra.Command {
 		short = "Deactivate all services on a machine"
 		long  = `Deactivate all services on one or more Fly Machines (cordon them). Pass
 machine IDs as arguments; the app is looked up from the first ID unless
-` + "`--app`" + ` or ` + "`fly.toml`" + ` sets it. With no IDs, you pick machines of the app from a list
-in a terminal; without a terminal, IDs are required.
+` + "`--app`" + `, ` + "`FLY_APP`" + ` or ` + "`fly.toml`" + ` sets it. With no IDs, you pick machines of
+the app from a list in a terminal; without a terminal, IDs are required.
 
 Turn services back on with ` + "`fly machine uncordon`" + `.`
 		usage = "cordon [<id>...]"
