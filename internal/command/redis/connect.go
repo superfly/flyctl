@@ -35,6 +35,11 @@ func newConnect() (cmd *cobra.Command) {
 func runConnect(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
+	redisCliPath, err := exec.LookPath("redis-cli")
+	if err != nil {
+		return fmt.Errorf("could not find redis-cli in your $PATH; install it, or run `fly redis proxy` to use another client: %w", err)
+	}
+
 	localProxyPort := "16379"
 
 	params, password, err := getRedisProxyParams(ctx, localProxyPort)
@@ -42,26 +47,25 @@ func runConnect(ctx context.Context) (err error) {
 		return err
 	}
 
-	redisCliPath, err := exec.LookPath("redis-cli")
-	if err != nil {
-		fmt.Fprintf(io.Out, "Could not find redis-cli in your $PATH. Install it or point your redis-cli at: %s", "someurl")
-
-		return
-	}
-
 	err = proxy.Start(ctx, params)
 	if err != nil {
 		return err
 	}
 
-	cmd := exec.CommandContext(ctx, redisCliPath, "-p", localProxyPort)
+	return runRedisCLI(ctx, io, redisCliPath, localProxyPort, password)
+}
+
+func runRedisCLI(ctx context.Context, io *iostreams.IOStreams, path, port, password string) error {
+	cmd := exec.CommandContext(ctx, path, "-p", port)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("REDISCLI_AUTH=%s", password))
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
 	cmd.Stdin = io.In
 
-	cmd.Start()
-	cmd.Wait()
+	// Leaving redis-cli with Ctrl-C cancels ctx, and isn't a failure.
+	if err := cmd.Run(); err != nil && ctx.Err() == nil {
+		return fmt.Errorf("redis-cli failed: %w", err)
+	}
 
-	return
+	return nil
 }

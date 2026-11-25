@@ -28,7 +28,7 @@ func newUpdate() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runUpdate,
 		command.RequireSession,
-		command.RequireAppName,
+		command.LoadAppNameIfPresent,
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
