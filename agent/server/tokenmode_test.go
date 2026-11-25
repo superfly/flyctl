@@ -64,7 +64,11 @@ func TestTokenModeFor(t *testing.T) {
 		},
 		"flag on, legacy token, local on": {
 			local: true, legacy: true, user: user(42), flag: flag(true, nil),
-			want: true,
+			want: false,
+		},
+		"flag off, legacy token, local on": {
+			local: true, legacy: true, user: user(42), flag: flag(false, nil),
+			want: false,
 		},
 		"flag off, local off": {
 			user: user(42), flag: flag(false, nil),

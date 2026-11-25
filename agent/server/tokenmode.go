@@ -25,19 +25,21 @@ const tokenModeFlagTimeout = 5 * time.Second
 // The flag is evaluated afresh on every call so a rollout reaches agents
 // that have been running for days. Whenever it can't be evaluated (the user
 // lookup fails, the token identifies no user, LaunchDarkly is unreachable)
-// the local config decides, as if the flag were off. So it does when the
-// session has no macaroons: the gateway can't use a legacy token, and failing
-// would break fly ssh and friends for everyone the rollout lands on.
+// the local config decides, as if the flag were off.
+//
+// A session without macaroons never uses token mode, whatever the flag or
+// config say: the gateway can't use a legacy token, so trying would only
+// break fly ssh and friends.
 func (s *server) tokenModeFor(ctx context.Context, client flyutil.Client, sessionToks *tokens.Tokens) bool {
+	if s.tokensFor(sessionToks).MacaroonsOnly().Empty() {
+		s.print("session has no macaroons; not using token mode")
+
+		return false
+	}
+
 	on, err := s.tokenModeFlagFor(ctx, client)
 	if err != nil {
 		s.printf("%s flag: %v; using local config (token mode %t)", launchdarkly.WireGuardTokenModeFlag, err, s.TokenMode)
-
-		return s.TokenMode
-	}
-
-	if on && s.tokensFor(sessionToks).MacaroonsOnly().Empty() {
-		s.printf("%s flag is on, but the session has no macaroons; using local config (token mode %t)", launchdarkly.WireGuardTokenModeFlag, s.TokenMode)
 
 		return s.TokenMode
 	}
