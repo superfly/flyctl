@@ -1,5 +1,52 @@
 package mpg
 
+import (
+	"context"
+	"fmt"
+	"sort"
+
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
+)
+
+// availablePlans returns known plans in local price order. A failed lookup
+// returns the full local catalog and the error so callers can explain the fallback.
+func availablePlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgresPlan, error) {
+	plans, err := flapsutil.ClientFromContext(ctx).ListManagedPostgresPlans(ctx, orgSlug)
+	if err != nil {
+		plans = make([]flaps.ManagedPostgresPlan, 0, len(MPGPlans))
+		for key := range MPGPlans {
+			plans = append(plans, flaps.ManagedPostgresPlan{Plan: key})
+		}
+	}
+	known := make([]flaps.ManagedPostgresPlan, 0, len(plans))
+	for _, p := range plans {
+		if _, ok := MPGPlans[p.Plan]; ok {
+			known = append(known, p)
+		}
+	}
+	plans = known
+	if len(plans) == 0 {
+		return nil, fmt.Errorf("no Managed Postgres plans available for organization %s", orgSlug)
+	}
+
+	sort.Slice(plans, func(i, j int) bool { return MPGPlans[plans[i].Plan].PricePerMo < MPGPlans[plans[j].Plan].PricePerMo })
+
+	return plans, err
+}
+
+// defaultPlan prefers Basic and otherwise picks the cheapest available plan.
+// plans must be nonempty and in local price order, as returned by availablePlans.
+func defaultPlan(plans []flaps.ManagedPostgresPlan) string {
+	for _, p := range plans {
+		if p.Plan == "basic" {
+			return p.Plan
+		}
+	}
+
+	return plans[0].Plan
+}
+
 // PlanDetails holds the details for each managed postgres plan.
 type PlanDetails struct {
 	Name       string
@@ -9,8 +56,6 @@ type PlanDetails struct {
 }
 
 var MPGPlans = map[string]PlanDetails{
-	// The API offers dev-256 only to organizations with its feature flag,
-	// and turns it down for the others.
 	"dev-256": {
 		Name:       "Developer",
 		CPU:        "Shared x 1",
