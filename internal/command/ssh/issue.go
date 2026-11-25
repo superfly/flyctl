@@ -1,12 +1,12 @@
 package ssh
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"io"
 	"math/rand"
 	"net"
 	"net/mail"
@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -101,7 +102,14 @@ func runSSHIssue(ctx context.Context) (err error) {
 	case 0:
 		// neither
 	case 1:
-		// org only
+		// org only, unless --org already named it
+		if flag.IsSpecified(ctx, flagnames.Org) {
+			if _, err = mail.ParseAddress(args[0]); err == nil {
+				emails = args[0]
+			} else {
+				rootname = args[0]
+			}
+		}
 	case 2:
 		// org+email or org+path
 		if _, err = mail.ParseAddress(args[1]); err == nil {
@@ -170,7 +178,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 		cf *os.File
 	)
 
-	for pf == nil && cf == nil {
+	for pf == nil || cf == nil {
 		if rootname == "" {
 			message := "Path to store private key: "
 			if err := prompt.String(ctx, &rootname, message, "", true); err != nil {
@@ -183,16 +191,22 @@ func runSSHIssue(ctx context.Context) (err error) {
 			rootname = fmt.Sprintf("%s/.ssh/%s", os.Getenv("HOME"), rootname)
 		}
 
-		mode := os.O_WRONLY | os.O_TRUNC | os.O_CREATE
+		// Existing files are only truncated once both are open, so a failure
+		// to open either leaves them as they were.
+		mode := os.O_WRONLY | os.O_CREATE
+		existed := false
 		if !flag.GetBool(ctx, "overwrite") {
 			mode |= os.O_EXCL
 		} else if _, err = os.Stat(rootname); err == nil {
+			existed = true
 			if buf, err := os.ReadFile(rootname); err != nil {
 				fmt.Fprintf(out, "File exists, but we can't read it to make sure it's safe to overwrite: %s\n", err)
+				rootname = ""
 
 				continue
-			} else if !strings.Contains(string(buf), "fly.io" /* BUG(tqbf): do better */) {
+			} else if !isFlyPrivateKey(buf) {
 				fmt.Fprintf(out, "File exists, but isn't a fly.io ed25519 private key\n")
+				rootname = ""
 
 				continue
 			}
@@ -209,20 +223,82 @@ func runSSHIssue(ctx context.Context) (err error) {
 		cf, err = os.OpenFile(rootname+"-cert.pub", mode, 0o600)
 		if err != nil {
 			pf.Close()
-			fmt.Fprintf(out, "Can't open certificate file %s: %s", rootname+"-cert.pub", err)
+			pf = nil
+			if !existed {
+				os.Remove(rootname)
+			}
+			fmt.Fprintf(out, "Can't open certificate file %s: %s\n", rootname+"-cert.pub", err)
+			rootname = ""
 		}
 	}
 
-	io.WriteString(cf, icert.Certificate)
-	cf.Close()
+	if err := writeAndClose(cf, []byte(icert.Certificate)); err != nil {
+		pf.Close()
 
-	buf := MarshalED25519PrivateKey(priv, "fly.io")
-	pf.Write(buf)
-	pf.Close()
+		return fmt.Errorf("can't write certificate file: %w", err)
+	}
+
+	if err := writeAndClose(pf, MarshalED25519PrivateKey(priv, flyKeyComment)); err != nil {
+		return fmt.Errorf("can't write private key file: %w", err)
+	}
 
 	fmt.Printf("Wrote %d-hour SSH credential to %s, %s-cert.pub\n", hours, rootname, rootname)
 
 	return nil
+}
+
+// flyKeyComment marks the private keys that fly ssh issue writes.
+const flyKeyComment = "fly.io"
+
+// isFlyPrivateKey reports whether buf is an unencrypted OpenSSH private key
+// with the comment that fly ssh issue gives the keys it writes.
+func isFlyPrivateKey(buf []byte) bool {
+	block, _ := pem.Decode(buf)
+	if block == nil || block.Type != "OPENSSH PRIVATE KEY" {
+		return false
+	}
+
+	data, ok := bytes.CutPrefix(block.Bytes, []byte("openssh-key-v1\x00"))
+	if !ok {
+		return false
+	}
+
+	var w struct {
+		CipherName   string
+		KdfName      string
+		KdfOpts      string
+		NumKeys      uint32
+		PubKey       []byte
+		PrivKeyBlock []byte
+	}
+	if err := ssh.Unmarshal(data, &w); err != nil || w.CipherName != "none" {
+		return false
+	}
+
+	var pk struct {
+		Check1  uint32
+		Check2  uint32
+		Keytype string
+		Pub     []byte
+		Priv    []byte
+		Comment string
+		Pad     []byte `ssh:"rest"`
+	}
+	if err := ssh.Unmarshal(w.PrivKeyBlock, &pk); err != nil {
+		return false
+	}
+
+	return pk.Keytype == ssh.KeyAlgoED25519 && pk.Comment == flyKeyComment
+}
+
+// writeAndClose replaces f's contents with data and closes it.
+func writeAndClose(f *os.File, data []byte) error {
+	err := f.Truncate(0)
+	if err == nil {
+		_, err = f.Write(data)
+	}
+
+	return errors.Join(err, f.Close())
 }
 
 // stolen from `mikesmitty`, thanks, you are a mikesmitty and a scholar

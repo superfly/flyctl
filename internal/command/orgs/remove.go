@@ -34,17 +34,17 @@ func runRemove(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
 	selectedOrg, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, AdminOnly)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	org, err := client.GetDetailedOrganizationBySlug(ctx, selectedOrg.Slug)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	email, err := emailFromSecondArgOrPrompt(ctx)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	var id string
