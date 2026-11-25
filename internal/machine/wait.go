@@ -103,17 +103,22 @@ func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			terminalNotFound := waitingForFirstStart && errors.Is(err, flaps.ErrFlapsNotFound)
 			if fromEventID != "" && machine.Config != nil && machine.Config.AutoDestroy && isFlapsError && flapsErr.ResponseStatusCode == http.StatusNotFound {
 				current, getErr := flapsClient.Get(waitCtx, appName, machine.ID)
-				// A transient readback failure leaves the original launch unresolved.
-				if getErr != nil {
-					var readErr *flaps.FlapsError
-					if !errors.As(getErr, &readErr) || readErr.ResponseStatusCode == http.StatusTooManyRequests || readErr.ResponseStatusCode == http.StatusRequestTimeout || readErr.ResponseStatusCode >= 500 {
-						terminalNotFound = false
-					}
-				}
-				if getErr == nil && current != nil && current.ID == machine.ID && current.State == fly.MachineStateDestroyed {
+				var readErr *flaps.FlapsError
+				switch {
+				case errors.Is(getErr, flaps.ErrFlapsNotFound):
+					// An unpinned launch may not be visible yet. Preserve the pinned wait's 404.
+				case errors.As(getErr, &readErr) && readErr.ResponseStatusCode >= 400 && readErr.ResponseStatusCode < 500 &&
+					readErr.ResponseStatusCode != http.StatusRequestTimeout && readErr.ResponseStatusCode != http.StatusTooManyRequests:
+					return "", getErr
+				case getErr != nil:
+					terminalNotFound = false
+				case current != nil && current.ID == machine.ID && current.State == fly.MachineStateDestroying && current.Version == machine.Version:
+					terminalNotFound = false
+				case current != nil && current.ID == machine.ID && current.State == fly.MachineStateDestroyed:
 					if confirmedLaunchStart(current, machine.Version, fromEventID) {
 						return fly.MachineStateDestroyed, nil
 					}
+
 					return "", fmt.Errorf("Machine %s was destroyed before flyctl could confirm it started", machine.ID)
 				}
 			}

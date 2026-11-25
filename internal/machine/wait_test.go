@@ -209,6 +209,7 @@ func TestPinnedAutoDestroyReadback(t *testing.T) {
 		readErr   error
 		wantRetry bool
 	}{
+		{"destroying", nil, true},
 		{"network error", io.ErrUnexpectedEOF, true},
 		{"request timeout", &flaps.FlapsError{ResponseStatusCode: http.StatusRequestTimeout}, true},
 		{"rate limited", &flaps.FlapsError{ResponseStatusCode: http.StatusTooManyRequests}, true},
@@ -228,9 +229,13 @@ func TestPinnedAutoDestroyReadback(t *testing.T) {
 				},
 				GetFunc: func(context.Context, string, string) (*fly.Machine, error) {
 					gets++
+					if gets == 1 && tc.readErr == nil {
+						return &fly.Machine{ID: "m", Version: "v", State: fly.MachineStateDestroying}, nil
+					}
 					if gets == 1 {
 						return nil, tc.readErr
 					}
+
 					return &fly.Machine{ID: "m", Version: "v", State: "destroyed", Events: []*fly.MachineEvent{{ID: "01M88HFHQ2JRD6X01GVKNZWZBM", Type: "start", Status: "started"}}}, nil
 				},
 			}
@@ -241,9 +246,22 @@ func TestPinnedAutoDestroyReadback(t *testing.T) {
 				if err != nil || state != "destroyed" || gets != 2 {
 					t.Fatalf("state=%q gets=%d err=%v", state, gets, err)
 				}
-			} else if !errors.Is(err, missing) || gets != 1 {
+			} else if !errors.Is(err, tc.readErr) || gets != 1 {
 				t.Fatalf("gets=%d err=%v", gets, err)
 			}
 		})
+	}
+}
+
+func TestAutoDestroyReadbackForbiddenBeforePin(t *testing.T) {
+	denied := &flaps.FlapsError{ResponseStatusCode: http.StatusForbidden}
+	client := &mock.FlapsClient{
+		WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error { return flaps.ErrFlapsNotFound },
+		GetFunc:  func(context.Context, string, string) (*fly.Machine, error) { return nil, denied },
+	}
+	m := &fly.Machine{ID: "m", Config: &fly.MachineConfig{AutoDestroy: true}, Events: []*fly.MachineEvent{{ID: "01M88HFCDT61KY94NYM9HWM0A4", Type: "launch", Status: "created"}}}
+	_, err := WaitForLaunch(flapsutil.NewContextWithClient(t.Context(), client), "app", m, 100*time.Millisecond)
+	if !errors.Is(err, denied) {
+		t.Fatalf("got %v, want readback permission error", err)
 	}
 }
