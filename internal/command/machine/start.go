@@ -31,9 +31,10 @@ in a terminal; without a terminal, IDs are required.
 
 The command returns once each start request is accepted, unless you pass
 ` + "`--wait`" + `, which waits up to five minutes for each machine to start and then
-for its health checks to pass. If a machine is still being created or is
-already starting, the command waits up to a minute for that either way. Use
-` + "`fly machine wait`" + ` or ` + "`fly machine status`" + ` to follow the machine's state.`
+for its health checks to pass. If a machine is still being created, is
+already starting or is being replaced by an update, the command waits up to
+a minute for that either way. Use ` + "`fly machine wait`" + ` or
+` + "`fly machine status`" + ` to follow the machine's state.`
 
 		usage = "start [<id>...]"
 	)
