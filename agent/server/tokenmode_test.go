@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	genq "github.com/Khan/genqlient/graphql"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/mock"
 )
 
@@ -43,10 +44,11 @@ func TestTokenModeFor(t *testing.T) {
 	}
 
 	cases := map[string]struct {
-		local bool
-		user  viewer
-		flag  func(context.Context, int) (bool, error)
-		want  bool
+		local  bool
+		legacy bool
+		user   viewer
+		flag   func(context.Context, int) (bool, error)
+		want   bool
 	}{
 		"flag on, local off": {
 			user: user(42), flag: flag(true, nil),
@@ -55,6 +57,18 @@ func TestTokenModeFor(t *testing.T) {
 		"flag on, local on": {
 			local: true, user: user(42), flag: flag(true, nil),
 			want: true,
+		},
+		"flag on, legacy token, local off": {
+			legacy: true, user: user(42), flag: flag(true, nil),
+			want: false,
+		},
+		"flag on, legacy token, local on": {
+			local: true, legacy: true, user: user(42), flag: flag(true, nil),
+			want: false,
+		},
+		"flag off, legacy token, local on": {
+			local: true, legacy: true, user: user(42), flag: flag(false, nil),
+			want: false,
 		},
 		"flag off, local off": {
 			user: user(42), flag: flag(false, nil),
@@ -97,7 +111,12 @@ func TestTokenModeFor(t *testing.T) {
 				tokenModeFlag: tc.flag,
 			}
 
-			if got := s.tokenModeFor(context.Background(), apiClient(tc.user)); got != tc.want {
+			toks := tokens.Parse("fm2_session")
+			if tc.legacy {
+				toks = tokens.Parse("fo1_session")
+			}
+
+			if got := s.tokenModeFor(context.Background(), apiClient(tc.user), toks); got != tc.want {
 				t.Errorf("tokenModeFor() = %t, want %t", got, tc.want)
 			}
 		})
@@ -115,7 +134,7 @@ func TestTokenModeForPassesUserID(t *testing.T) {
 		},
 	}
 
-	s.tokenModeFor(context.Background(), apiClient(viewer{json: `{"__typename":"User","internalNumericId":1234}`}))
+	s.tokenModeFor(context.Background(), apiClient(viewer{json: `{"__typename":"User","internalNumericId":1234}`}), tokens.Parse("fm2_session"))
 
 	if got != 1234 {
 		t.Errorf("flag evaluated for user %d, want 1234", got)

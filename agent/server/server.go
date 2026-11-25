@@ -281,7 +281,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestab
 	websocketsOnly := env.IsCI() || os.Getenv("WSWG") != "" || s.ConfigWebsockets
 
 	var transport string
-	if s.tokenModeFor(ctx, client) {
+	if s.tokenModeFor(ctx, client, sessionToks) {
 		transport = "token"
 
 		if tunnel, err = s.buildTokenTunnel(ctx, org, network, sessionToks, !websocketsOnly); err != nil {

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/launchdarkly"
@@ -25,7 +26,17 @@ const tokenModeFlagTimeout = 5 * time.Second
 // that have been running for days. Whenever it can't be evaluated (the user
 // lookup fails, the token identifies no user, LaunchDarkly is unreachable)
 // the local config decides, as if the flag were off.
-func (s *server) tokenModeFor(ctx context.Context, client flyutil.Client) bool {
+//
+// A session without macaroons never uses token mode, whatever the flag or
+// config say: the gateway can't use a legacy token, so trying would only
+// break fly ssh and friends.
+func (s *server) tokenModeFor(ctx context.Context, client flyutil.Client, sessionToks *tokens.Tokens) bool {
+	if s.tokensFor(sessionToks).MacaroonsOnly().Empty() {
+		s.print("session has no macaroons; not using token mode")
+
+		return false
+	}
+
 	on, err := s.tokenModeFlagFor(ctx, client)
 	if err != nil {
 		s.printf("%s flag: %v; using local config (token mode %t)", launchdarkly.WireGuardTokenModeFlag, err, s.TokenMode)
