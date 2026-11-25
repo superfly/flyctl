@@ -2,6 +2,7 @@ package apps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -154,6 +155,18 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.O
 		return err
 	}
 
+	if err := updateMovedMachines(ctx, app.Name, machines, skipHealthChecks, minvers); err != nil {
+		return fmt.Errorf("moved %s to %s, but %w", app.Name, targetOrg.Name, err)
+	}
+	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", app.Name, targetOrg.Name)
+
+	return nil
+}
+
+// updateMovedMachines updates every Machine, even after a failure: the app has
+// already moved.
+func updateMovedMachines(ctx context.Context, appName string, machines []*fly.Machine, skipHealthChecks bool, minvers *uint64) error {
+	var errs []error
 	for _, machine := range machines {
 		input := &fly.LaunchMachineInput{
 			Name:              machine.Name,
@@ -162,9 +175,13 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.O
 			SkipHealthChecks:  skipHealthChecks,
 			MinSecretsVersion: minvers,
 		}
-		mach.Update(ctx, app.Name, machine, input)
+		if err := mach.Update(ctx, appName, machine, input); err != nil {
+			errs = append(errs, fmt.Errorf("machine %s: %w", machine.ID, err))
+		}
 	}
-	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", app.Name, targetOrg.Name)
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to update %d of %d Machines:\n%w", len(errs), len(machines), errors.Join(errs...))
+	}
 
 	return nil
 }
