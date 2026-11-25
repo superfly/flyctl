@@ -71,6 +71,10 @@ func runMachineWait(ctx context.Context) error {
 		return err
 	}
 
+	// Set even when the machine was picked from a list, and still usable when
+	// Get fails and returns a nil machine.
+	machineID = machine.ID
+
 	appName := appconfig.NameFromContext(ctx)
 	client := flapsutil.ClientFromContext(ctx)
 
@@ -99,9 +103,9 @@ func runMachineWait(ctx context.Context) error {
 
 		fmt.Fprintf(io.Out, "Retrying wait for machine %s due to transient error: %v\n", machine.ID, err)
 
-		machine, err = client.Get(ctx, appName, machine.ID)
+		machine, err = client.Get(ctx, appName, machineID)
 		if err != nil {
-			return fmt.Errorf("machine %s could not be refetched before retrying wait: %w", machine.ID, err)
+			return fmt.Errorf("machine %s could not be refetched before retrying wait: %w", machineID, err)
 		}
 
 		retryDelay := retryDelayForAttempt(attempt)
@@ -123,9 +127,9 @@ func runMachineWait(ctx context.Context) error {
 	}
 
 	if desiredState == "settled" {
-		machine, err = client.Get(ctx, appName, machine.ID)
+		machine, err = client.Get(ctx, appName, machineID)
 		if err != nil {
-			return fmt.Errorf("machine %s reached settled state but could not fetch final state: %w", machine.ID, err)
+			return fmt.Errorf("machine %s reached settled state but could not fetch final state: %w", machineID, err)
 		}
 		desiredState = machine.State
 	}

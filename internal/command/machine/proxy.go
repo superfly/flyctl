@@ -7,6 +7,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -29,6 +30,12 @@ func newProxy() *cobra.Command {
 			Name:        "quiet",
 			Shorthand:   "q",
 			Description: "Don't print progress indicators for WireGuard",
+		},
+		flag.String{
+			Name:        flagnames.BindAddr,
+			Shorthand:   "b",
+			Default:     "127.0.0.1",
+			Description: "Local address to bind to",
 		},
 	)
 
