@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/spf13/pflag"
@@ -664,7 +665,15 @@ func Test_launchInputForRestart_nilConfig(t *testing.T) {
 	assert.ErrorContains(t, err, `can't restart machine unreachable: its host status is "unreachable"`)
 }
 
-// Test machineDeployment.restartOnly
+func TestDetermineAppConfigForMachinesMissingLocalFile(t *testing.T) {
+	cfg := &appconfig.Config{Files: []appconfig.File{{GuestPath: "/fixture", LocalPath: filepath.Join(t.TempDir(), "missing")}}}
+	ctx := appconfig.WithConfig(context.Background(), cfg)
+	_, err := determineAppConfigForMachines(ctx, MachineDeploymentArgs{})
+	require.ErrorContains(t, err, "could not read file")
+	_, err = determineAppConfigForMachines(ctx, MachineDeploymentArgs{RestartOnly: true})
+	require.NoError(t, err)
+}
+
 func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Env: map[string]string{
@@ -678,12 +687,14 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	assert.NoError(t, err)
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
+	encoded := "AP8K"
 	origMachine := &fly.Machine{
 		State:      fly.MachineStateStarted,
 		HostStatus: fly.HostStatusOk,
 		ID:         "OrigID",
 		Config: &fly.MachineConfig{
 			Image: "instead-use/the-redmoon",
+			Files: []*fly.File{{GuestPath: "/fixture", RawValue: &encoded}},
 		},
 	}
 
@@ -694,6 +705,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 		ID: "OrigID",
 		Config: &fly.MachineConfig{
 			Image: "instead-use/the-redmoon",
+			Files: []*fly.File{{GuestPath: "/fixture", RawValue: &encoded}},
 			Metadata: map[string]string{
 				"fly_platform_version": "v2",
 				"fly_process_group":    "app",

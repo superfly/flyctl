@@ -187,7 +187,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
+	appConfig, err := determineAppConfigForMachines(ctx, args)
 	if err != nil {
 		tracing.RecordError(ctx, span, err, "failed to determine app config for machines")
 
@@ -843,37 +843,37 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, maxUnavailable *float64, files []*fly.File) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, args MachineDeploymentArgs) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
 	}
 
-	if len(envFromFlags) > 0 {
+	if len(args.EnvFromFlags) > 0 {
 		var parsedEnv map[string]string
-		parsedEnv, err := cmdutil.ParseKVStringsToMap(envFromFlags)
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(args.EnvFromFlags)
 		if err != nil {
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		appConfig.SetEnvVariables(parsedEnv)
 	}
 
-	if strategy != "" {
+	if args.Strategy != "" {
 		if appConfig.Deploy == nil {
 			appConfig.Deploy = &appconfig.Deploy{}
 		}
-		appConfig.Deploy.Strategy = strategy
+		appConfig.Deploy.Strategy = args.Strategy
 	}
-	if maxUnavailable != nil {
+	if args.MaxUnavailable != nil {
 		if appConfig.Deploy == nil {
 			appConfig.Deploy = &appconfig.Deploy{}
 		}
-		appConfig.Deploy.MaxUnavailable = maxUnavailable
+		appConfig.Deploy.MaxUnavailable = args.MaxUnavailable
 	}
 
 	// deleting this block will result in machines not being deployed in the user selected region
-	if primaryRegion != "" {
-		appConfig.PrimaryRegion = primaryRegion
+	if args.PrimaryRegionFlag != "" {
+		appConfig.PrimaryRegion = args.PrimaryRegionFlag
 	}
 
 	// Always prefer the app name passed via --app
@@ -882,9 +882,11 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 		appConfig.AppName = appName
 	}
 
-	// Merge in any files passed via --file flags.
-	if err := appConfig.MergeFiles(files); err != nil {
-		return nil, err
+	// Restarts reuse the files in each Machine's deployed config.
+	if !args.RestartOnly {
+		if err := appConfig.MergeFiles(args.Files); err != nil {
+			return nil, err
+		}
 	}
 
 	return appConfig, nil
