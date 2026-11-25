@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"os"
@@ -120,16 +121,19 @@ func bind(socket string) (l net.Listener, err error) {
 	return bindSocket(socket)
 }
 
+// latestChange returns the config file's modification time, or the zero
+// time if it doesn't exist yet: token-mode agents never write one, so a
+// fresh machine authenticated only by FLY_API_TOKEN has none.
 func latestChange(path string) (at time.Time, err error) {
-	var info os.FileInfo
-	switch info, err = os.Stat(path); err {
+	info, err := os.Stat(path)
+	switch {
+	case err == nil:
+		return info.ModTime(), nil
+	case errors.Is(err, fs.ErrNotExist):
+		return time.Time{}, nil
 	default:
-		err = fmt.Errorf("can't stat config file: %w", err)
-	case nil:
-		at = info.ModTime()
+		return time.Time{}, fmt.Errorf("can't stat config file: %w", err)
 	}
-
-	return
 }
 
 type tunnelKey struct {
