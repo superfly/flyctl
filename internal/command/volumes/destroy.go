@@ -19,10 +19,11 @@ func newDestroy() *cobra.Command {
 	const (
 		short = "Destroy one or more volumes"
 
-		long = `Destroy one or more Fly Volumes by ID, permanently deleting all their
-data. This can't be undone. With no IDs, you pick a volume of the app from
-a list in a terminal; without a terminal, IDs are required. Unless
-` + "`--app`" + ` or ` + "`fly.toml`" + ` sets the app, it's looked up from the first volume ID.
+		long = `Destroy one or more Fly Volumes by ID, permanently deleting all their data.
+This can't be undone. With no IDs, you pick a volume of the app from a list
+in a terminal; without a terminal, IDs are required. Unless ` + "`--app`" + `,
+` + "`FLY_APP`" + ` or ` + "`fly.toml`" + ` sets the app, it's looked up from the first volume
+ID.
 
 fly asks you to confirm each volume. Pass ` + "`--yes`" + ` to skip the prompts;
 it's required without a terminal. To keep a copy of the data, run

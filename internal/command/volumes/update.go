@@ -20,9 +20,10 @@ func newUpdate() *cobra.Command {
 	const (
 		short = "Update a volume for an app"
 
-		long = `Change a Fly Volume's snapshot settings: how many days snapshots are
-kept, and whether scheduled snapshots are taken. Settings you don't pass
-are left as they are. To change the size, use ` + "`fly volumes extend`" + `.`
+		long = `Change a Fly Volume's snapshot settings: how many days snapshots are kept,
+and whether scheduled snapshots are taken. Settings you don't pass are left
+as they are. The app comes from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml. To change
+the size, use ` + "`fly volumes extend`" + `.`
 
 		usage = "update <volume id>"
 	)

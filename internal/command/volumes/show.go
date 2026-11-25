@@ -20,10 +20,10 @@ func newShow() (cmd *cobra.Command) {
 	const (
 		short = "Show the details of the specified volume"
 
-		long = `Show a Fly Volume's name, region, zone, size, encryption, creation time
-and snapshot settings. Unless ` + "`--app`" + ` or ` + "`fly.toml`" + ` sets the
-app, it's looked up from the volume ID. With no volume ID, you pick a volume of the app from a
-list in a terminal; without a terminal, the ID is required.`
+		long = `Show a Fly Volume's name, region, zone, size, encryption, creation time and
+snapshot settings. Unless ` + "`--app`" + `, ` + "`FLY_APP`" + ` or ` + "`fly.toml`" + ` sets the app,
+it's looked up from the volume ID. With no volume ID, you pick a volume of
+the app from a list in a terminal; without a terminal, the ID is required.`
 	)
 
 	cmd = command.New("show <volume id>", short, long, runShow,

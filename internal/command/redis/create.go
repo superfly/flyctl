@@ -62,21 +62,27 @@ func isFixedPlan(planName string) bool {
 func newCreate() (cmd *cobra.Command) {
 	const (
 		short = "Create an Upstash Redis database"
-		long  = `Create an Upstash Redis database in an organization. In a terminal,
-you're asked for the organization, a name (blank generates one), the
-primary region, whether to enable eviction and ProdPack ($200/mo), and
-optional replica regions. On fixed-price plans you're also asked about
-auto-upgrade.
+		long  = `Create an Upstash Redis database in an organization. In a terminal, you're
+asked for the organization (from ` + "`--org`" + ` or ` + "`FLY_ORG`" + ` if set, or your
+personal organization if it's your only one), a name (blank generates one),
+the primary region (from ` + "`--region`" + ` or ` + "`FLY_REGION`" + ` if set), whether to
+enable eviction and ProdPack (` + prodPackPrice + `), and optional replica regions. On
+fixed-price plans you're also asked about auto-upgrade.
 
 The plan defaults to pay-as-you-go; pass ` + "`--plan`" + ` to choose another, and
 see ` + "`fly redis plans`" + ` for the options. Legacy plans can't be used for
 new databases.
 
-To run without prompts, pass ` + "`--org`" + `, ` + "`--name`" + `, ` + "`--region`" + `,
+To skip every prompt in a terminal, pass ` + "`--org`" + `, ` + "`--name`" + `, ` + "`--region`" + `,
 ` + "`--enable-eviction`" + ` or ` + "`--disable-eviction`" + `, ` + "`--enable-prodpack`" + ` (or
-` + "`--enable-prodpack=false`" + `), and ` + "`--replica-regions`" + ` or ` + "`--no-replicas`" + `.
-On a fixed-price plan, also pass ` + "`--enable-auto-upgrade`" + ` (or
-` + "`--enable-auto-upgrade=false`" + `). When the database is ready, its connection URL is printed.`
+` + "`--enable-prodpack=false`" + `), and ` + "`--replica-regions`" + ` or ` + "`--no-replicas`" + `. On a
+fixed-price plan, also pass ` + "`--enable-auto-upgrade`" + ` (or
+` + "`--enable-auto-upgrade=false`" + `).
+
+Without a terminal, only the organization and the region are required. The
+name is generated if you don't pass one, and eviction, auto-upgrade,
+ProdPack and replicas are off unless you turn them on with flags. When the
+database is ready, its connection URL is printed.`
 
 		usage = "create"
 	)

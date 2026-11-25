@@ -25,11 +25,11 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app"
-		long  = `Create a Fly Volume for the app from ` + "`--app`" + ` or fly.toml. The volume
-name is required. The region comes from
-` + "`--region`" + `; without it you pick one in a terminal, and without a
-terminal the region is required. By default the volume is 1GB, encrypted,
-and keeps snapshots for 5 days.
+		long  = `Create a Fly Volume for the app from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml. The
+volume name is required. The region comes from ` + "`--region`" + ` or ` + "`FLY_REGION`" + `;
+with neither, you pick one in a terminal, and without a terminal a region is
+required. By default the volume is 1GB, encrypted, and keeps snapshots for 5
+days.
 
 If the app has no other volume with this name, fly warns that each volume
 lives on a single host and asks you to confirm. Pass ` + "`--yes`" + ` to skip

@@ -21,15 +21,18 @@ func newUpdate() (cmd *cobra.Command) {
 	const (
 		short = "Update an Upstash Redis database"
 		long  = `Change the plan, replica regions, eviction, auto-upgrade and ProdPack
-settings of the Upstash Redis database given by name as the argument. In
-a terminal you're asked about each setting, starting from its current
-value. Legacy plans are offered only to a database already on one.
+settings of the Upstash Redis database given by name as the argument. In a
+terminal you're asked about each setting, starting from its current value. A
+database on a legacy plan can keep that plan; other legacy plans aren't
+offered.
 
-Passing ` + "`--enable-prodpack`" + ` or ` + "`--disable-prodpack`" + ` changes only
-ProdPack and skips the other prompts, so it works without a terminal;
-add ` + "`--replica-regions`" + ` to change replicas at the same time. Otherwise
-the command needs a terminal. The new settings are printed when the
-update succeeds.`
+Passing ` + "`--enable-prodpack`" + ` or ` + "`--disable-prodpack`" + ` changes only ProdPack
+and skips the other prompts, so it works without a terminal; add
+` + "`--replica-regions`" + ` to change replicas at the same time. It takes a
+comma-separated list of region codes that replaces the current replica
+regions. Otherwise the command needs a terminal. When the update succeeds,
+the plan, eviction, auto-upgrade and ProdPack settings are printed; see the
+replica regions with ` + "`fly redis status`" + `.`
 
 		usage = "update <name>"
 	)
