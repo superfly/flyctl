@@ -122,6 +122,38 @@ func TestSupportsPreservedStoppedUpdate(t *testing.T) {
 	require.False(t, supportsPreservedStoppedUpdate("immediate", fly.MachineStateStarted))
 }
 
+func TestInPlaceUpdateReadinessWithZeroTimeout(t *testing.T) {
+	t.Setenv("FLY_FLAPS_BASE_URL", "http://flaps.test")
+	ios, _, _, _ := iostreams.Test()
+	ctx := iostreams.NewContext(t.Context(), ios)
+	client, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{
+		Transport: updateOutcomeRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+			if err := req.Context().Err(); err != nil {
+				return nil, err
+			}
+			if strings.HasSuffix(req.URL.Path, "/wait") {
+				return machineResponse(req, ""), nil
+			}
+
+			return machineResponse(req, `{"id":"m1","version":"target","state":"stopped"}`), nil
+		}),
+	})
+	require.NoError(t, err)
+	md := &machineDeployment{app: &flaps.App{Name: "app"}, io: ios, flapsClient: client, waitTimeout: 0}
+	previous := &fly.Machine{ID: "m1", Version: "previous"}
+	target := &fly.Machine{ID: "m1", Version: "target"}
+	entry := &machineUpdateEntry{
+		previousMachine: previous,
+		leasableMachine: machine.NewLeasableMachine(client, ios, "app", target, false),
+		launchInput:     &fly.LaunchMachineInput{SkipLaunch: true},
+	}
+	logger := statuslogger.Create(ctx, 1, false)
+	defer logger.Destroy(false)
+	line := logger.Line(0)
+	require.NoError(t, md.waitForMachine(ctx, entry, fly.MachineStateStopped, line))
+	require.NoError(t, md.checkUpdatedMachine(ctx, previous, target, true, line, ios, &healthcheckResult{}))
+}
+
 // Ensure readiness owns the state-wait operation even when a Machine intentionally stays stopped.
 func TestWaitForMachineAcceptsPreservedStoppedUpdate(t *testing.T) {
 	recorder := recordReadinessSpans(t)
@@ -213,6 +245,7 @@ func TestWaitForStartedOrPreservedStoppedUpdateDeclinesNewerLifecycleEvent(t *te
 		lm,
 		fly.MachineStateStarted,
 		20*time.Millisecond,
+		nil,
 	)
 
 	require.False(t, preservedStopped)

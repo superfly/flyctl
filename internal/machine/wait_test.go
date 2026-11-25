@@ -265,3 +265,96 @@ func TestAutoDestroyReadbackForbiddenBeforePin(t *testing.T) {
 		t.Fatalf("got %v, want readback permission error", err)
 	}
 }
+
+func TestWaitForUpdateVerifiesCurrentVersion(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		waitStatus     int
+		currentVersion string
+		promote        bool
+		failed         bool
+		probeStatus    int
+		wantError      string
+	}{
+		{"applied", http.StatusOK, "target", false, false, 0, ""},
+		{"promotion follows stopped event", http.StatusOK, "previous", true, false, 0, ""},
+		{"reverted after successful wait", http.StatusOK, "previous", false, true, 0, "remains on previous version previous"},
+		{"promotion never confirmed", http.StatusOK, "previous", false, false, 0, "could not confirm promotion"},
+		{"target disappears during probe", http.StatusOK, "previous", false, false, http.StatusNotFound, "probe failed"},
+		{"target replaced during probe", http.StatusOK, "previous", false, false, http.StatusConflict, "probe failed"},
+		{"missing target", http.StatusNotFound, "previous", false, false, 0, "wait failed"},
+		{"terminal failure", http.StatusConflict, "previous", false, true, 0, "remains on previous version previous"},
+		{"replaced", http.StatusConflict, "other", false, false, 0, "expected version target, found other"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var waits, reads atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/v1/apps/app/machines/m1/wait":
+					if r.URL.Query().Get("state") == "failed" {
+						if r.URL.Query().Get("version") != "target" {
+							t.Errorf("unexpected failure probe: %s", r.URL)
+						}
+						if tc.probeStatus != 0 {
+							w.WriteHeader(tc.probeStatus)
+							fmt.Fprint(w, `{"error":"probe failed"}`)
+						} else if tc.failed {
+							fmt.Fprint(w, `{"ok":true,"state":"failed","version":"target"}`)
+						} else {
+							w.WriteHeader(http.StatusRequestTimeout)
+							fmt.Fprint(w, `{"error":"deadline exceeded"}`)
+						}
+
+						return
+					}
+					waits.Add(1)
+					if r.URL.Query().Get("version") != "target" || r.URL.Query().Get("state") != "settled" {
+						t.Errorf("unexpected wait query: %s", r.URL)
+					}
+					w.WriteHeader(tc.waitStatus)
+					if tc.waitStatus == http.StatusOK {
+						fmt.Fprint(w, `{"ok":true}`)
+					} else if tc.failed {
+						fmt.Fprint(w, `{"error":"aborted: machine reached terminal state failed"}`)
+					} else {
+						fmt.Fprint(w, `{"error":"wait failed"}`)
+					}
+				case "/v1/apps/app/machines/m1":
+					version := tc.currentVersion
+					if reads.Add(1) > 1 && tc.promote {
+						version = "target"
+					}
+					fmt.Fprintf(w, `{"id":"m1","state":"stopped","version":%q}`, version)
+				default:
+					t.Errorf("unexpected request: %s", r.URL)
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			t.Setenv("FLY_FLAPS_BASE_URL", server.URL)
+			client, err := flaps.NewWithOptions(t.Context(), flaps.NewClientOpts{Tokens: tokens.Parse("FlyV1 fake")})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := flapsutil.NewContextWithClient(t.Context(), client)
+			previous := &fly.Machine{ID: "m1", Version: "previous"}
+			target := &fly.Machine{ID: "m1", Version: "target"}
+			current, err := waitForUpdate(ctx, "app", previous, target, time.Second)
+
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("expected %q, got %v", tc.wantError, err)
+				}
+			} else if err != nil || current.Version != target.Version {
+				t.Fatalf("expected version %s, got %v, err=%v", target.Version, current, err)
+			}
+			if got := reads.Load(); tc.probeStatus != 0 && got != 1 {
+				t.Errorf("machine reads = %d, want 1 after terminal probe error", got)
+			}
+			if got := waits.Load(); got != 1 {
+				t.Errorf("wait calls = %d, want 1", got)
+			}
+		})
+	}
+}

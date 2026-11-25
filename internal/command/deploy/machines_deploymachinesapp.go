@@ -235,11 +235,11 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 
 func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry, launchBasisState string, sl statuslogger.StatusLine) (err error) {
 	lm := e.leasableMachine
-	// Don't wait for SkipLaunch machines, they are updated but not started
-	if e.launchInput.SkipLaunch {
-		return nil
+	target := lm.Machine()
+	previous := e.previousMachine
+	if previous != nil && (previous.ID != target.ID || previous.Version == target.Version) {
+		previous = nil
 	}
-
 	ctx, span := tracing.GetTracer().Start(ctx, "deployment_readiness", trace.WithAttributes(
 		attribute.String("machine.ID", lm.Machine().ID),
 		attribute.Bool("deployment.skip_health_checks", md.skipHealthChecks),
@@ -249,9 +249,32 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 		tracing.RecordError(ctx, span, err, "machine readiness failed")
 		span.End()
 	}()
+	readinessCtx := ctx
+	waitTimeout := md.waitTimeout
+	if previous != nil {
+		var cancel context.CancelFunc
+		readinessCtx, cancel, waitTimeout = machine.ResolveWaitTimeoutContext(ctx, waitTimeout, false)
+		defer cancel()
+	}
+	if previous != nil && (e.launchInput.SkipLaunch || md.skipHealthChecks) {
+		waitErr := lm.WaitForState(readinessCtx, "settled", waitTimeout, machine.WithVersion(target.Version))
+		if _, err := machine.VerifyUpdateApplied(readinessCtx, md.flapsClient, md.app.Name, previous, target, waitErr); err != nil {
+			return suggestChangeWaitTimeout(err, "wait-timeout")
+		}
+	}
+	if e.launchInput.SkipLaunch {
+		return nil
+	}
 
 	if !md.skipHealthChecks {
-		preservedStopped, err := md.waitForStartedOrPreservedStoppedUpdate(ctx, lm, launchBasisState, md.waitTimeout)
+		var waitOpts []machine.WaitOption
+		if previous != nil {
+			waitOpts = append(waitOpts, machine.WithVersion(target.Version))
+		}
+		preservedStopped, err := md.waitForStartedOrPreservedStoppedUpdate(readinessCtx, lm, launchBasisState, waitTimeout, previous, waitOpts...)
+		if previous != nil && !preservedStopped {
+			_, err = machine.VerifyUpdateApplied(readinessCtx, md.flapsClient, md.app.Name, previous, target, err)
+		}
 		if err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 
@@ -571,6 +594,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 }
 
 type machineUpdateEntry struct {
+	previousMachine *fly.Machine
 	leasableMachine machine.LeasableMachine
 	launchInput     *fly.LaunchMachineInput
 }
@@ -1160,6 +1184,7 @@ const (
 
 func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
+	e.previousMachine = lm.Machine()
 
 	return retry.Do(
 		func() error { return lm.Update(ctx, *e.launchInput) },

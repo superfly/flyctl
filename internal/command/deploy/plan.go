@@ -674,9 +674,30 @@ func (md *machineDeployment) checkUpdatedMachine(ctx context.Context, oldMachine
 
 	span.SetAttributes(attribute.Bool("should_start", !skipLaunch))
 
-	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
+	inPlaceUpdate := oldMachine != nil && oldMachine.ID == machine.ID && oldMachine.Version != machine.Version
+	readinessCtx := ctx
+	waitTimeout := md.waitTimeout
+	if inPlaceUpdate {
+		var cancel context.CancelFunc
+		readinessCtx, cancel, waitTimeout = mach.ResolveWaitTimeoutContext(ctx, waitTimeout, false)
+		defer cancel()
+	}
+	checkReadiness := !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed
+	if inPlaceUpdate && (skipLaunch || !checkReadiness) {
+		waitErr := lm.WaitForState(readinessCtx, "settled", waitTimeout, mach.WithVersion(machine.Version))
+		if _, err := mach.VerifyUpdateApplied(readinessCtx, md.flapsClient, md.app.Name, oldMachine, machine, waitErr); err != nil {
+			return err
+		}
+	} else if checkReadiness {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", machine.ID))
-		state, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
+		var waitOpts []mach.WaitOption
+		if inPlaceUpdate {
+			waitOpts = append(waitOpts, mach.WithVersion(machine.Version))
+		}
+		state, err := waitForMachineState(readinessCtx, lm, []string{"stopped", "started", "suspended"}, waitTimeout, sl, waitOpts...)
+		if inPlaceUpdate {
+			_, err = mach.VerifyUpdateApplied(readinessCtx, md.flapsClient, md.app.Name, oldMachine, machine, err)
+		}
 		if err != nil {
 			tracing.RecordErrorEvent(ctx, span, err)
 
@@ -824,7 +845,7 @@ func (md *machineDeployment) clearMachineLease(ctx context.Context, machID, leas
 }
 
 // returns when the machine is in one of the possible states, or after passing the timeout threshold
-func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration, sl statuslogger.StatusLine) (string, error) {
+func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration, sl statuslogger.StatusLine, waitOpts ...mach.WaitOption) (string, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_machine_state", trace.WithAttributes(
 		attribute.StringSlice("possible_states", possibleStates),
 	))
@@ -841,7 +862,7 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 
 	for _, state := range possibleStates {
 		go func() {
-			err := lm.WaitForState(ctx, state, timeout)
+			err := lm.WaitForState(ctx, state, timeout, waitOpts...)
 			mutex.Lock()
 			defer func() {
 				numCompleted += 1

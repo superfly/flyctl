@@ -18,41 +18,23 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func WaitForState(ctx context.Context, appName string, machine *fly.Machine, desiredState string, timeout time.Duration) (string, error) {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-
-	if err := WaitForStartOrStop(ctx, appName, machine, desiredState, timeout); err != nil {
-		return "", err
-	}
-	if desiredState == "settled" {
-		m, err := flapsClient.Get(ctx, appName, machine.ID)
-		if err != nil {
-			return "", fmt.Errorf("failed to get machine after waiting for it to settle: %w", err)
-		}
-
-		return m.State, nil
-	}
-
-	return desiredState, nil
-}
-
 // WaitForLaunch returns started, or destroyed if the original launch started before deletion.
 func WaitForLaunch(ctx context.Context, appName string, machine *fly.Machine, timeout time.Duration) (string, error) {
 	for _, event := range machine.Events {
 		if event != nil && event.Type == "launch" && event.Status == "created" && event.ID != "" {
-			return waitForStartOrStop(ctx, appName, machine, "start", timeout, event.ID)
+			return waitForStartOrStop(ctx, appName, machine, "start", timeout, event.ID, "")
 		}
 	}
 
-	return waitForStartOrStop(ctx, appName, machine, "start", timeout, "")
+	return waitForStartOrStop(ctx, appName, machine, "start", timeout, "", "")
 }
 
 func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration) error {
-	_, err := waitForStartOrStop(ctx, appName, machine, action, timeout, "")
+	_, err := waitForStartOrStop(ctx, appName, machine, action, timeout, "", "")
 	return err
 }
 
-func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration, fromEventID string) (string, error) {
+func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration, fromEventID, version string) (string, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	waitCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("waiting for machine start or stop: %w", context.DeadlineExceeded))
@@ -81,6 +63,9 @@ func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 	if fromEventID != "" {
 		waitOpts = append(waitOpts, flaps.WithWaitFromEventID(fromEventID))
 	}
+	if version != "" {
+		waitOpts = append(waitOpts, flaps.WithWaitVersion(version))
+	}
 	waitingForFirstStart := false
 	for {
 		err := flapsClient.Wait(waitCtx, appName, machine.ID, waitOpts...)
@@ -100,6 +85,9 @@ func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		default:
 			var flapsErr *flaps.FlapsError
 			isFlapsError := errors.As(err, &flapsErr)
+			if version != "" && isTerminalVersionWaitError(err) {
+				return "", err
+			}
 			terminalNotFound := waitingForFirstStart && errors.Is(err, flaps.ErrFlapsNotFound)
 			if fromEventID != "" && machine.Config != nil && machine.Config.AutoDestroy && isFlapsError && flapsErr.ResponseStatusCode == http.StatusNotFound {
 				current, getErr := flapsClient.Get(waitCtx, appName, machine.ID)
@@ -161,6 +149,12 @@ func confirmedLaunchStart(current *fly.Machine, version, fromEventID string) boo
 	}
 
 	return false
+}
+
+func isTerminalVersionWaitError(err error) bool {
+	var flapsErr *flaps.FlapsError
+	return errors.As(err, &flapsErr) &&
+		(flapsErr.ResponseStatusCode == http.StatusNotFound || flapsErr.ResponseStatusCode == http.StatusConflict)
 }
 
 type WaitTimeoutErr struct {
