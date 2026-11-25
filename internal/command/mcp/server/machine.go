@@ -3,6 +3,8 @@ package mcpServer
 import (
 	"fmt"
 	"strconv"
+
+	"github.com/google/shlex"
 )
 
 var MachineCommands = []FlyCommand{
@@ -242,7 +244,7 @@ var MachineCommands = []FlyCommand{
 			"env": {
 				Description: "Set of environment variables in the form of NAME=VALUE pairs.",
 				Required:    false,
-				Type:        "array",
+				Type:        "hash",
 			},
 			"host-dedication-id": {
 				Description: "The dedication id of the reserved hosts for your organization (if any)",
@@ -262,7 +264,7 @@ var MachineCommands = []FlyCommand{
 			"metadata": {
 				Description: "Set of metadata in the form of NAME=VALUE pairs.",
 				Required:    false,
-				Type:        "array",
+				Type:        "hash",
 			},
 			"name": {
 				Description: "Name of the new machine. Will be generated if omitted.",
@@ -367,7 +369,13 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if env, ok := args["env"]; ok {
-				cmdArgs = append(cmdArgs, "--env", env)
+				items, err := shlex.Split(env)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse env: %w", err)
+				}
+				for _, item := range items {
+					cmdArgs = append(cmdArgs, "--env", item)
+				}
 			}
 
 			if hostDedicationID, ok := args["host-dedication-id"]; ok {
@@ -379,7 +387,13 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if metadata, ok := args["metadata"]; ok {
-				cmdArgs = append(cmdArgs, "--metadata", metadata)
+				items, err := shlex.Split(metadata)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse metadata: %w", err)
+				}
+				for _, item := range items {
+					cmdArgs = append(cmdArgs, "--metadata", item)
+				}
 			}
 
 			if name, ok := args["name"]; ok {
@@ -899,7 +913,7 @@ var MachineCommands = []FlyCommand{
 			"env": {
 				Description: "Set of environment variables in the form of NAME=VALUE pairs.",
 				Required:    false,
-				Type:        "array",
+				Type:        "hash",
 			},
 			"host-dedication-id": {
 				Description: "The dedication id of the reserved hosts for your organization (if any)",
@@ -919,7 +933,7 @@ var MachineCommands = []FlyCommand{
 			"metadata": {
 				Description: "Set of metadata in the form of NAME=VALUE pairs.",
 				Required:    false,
-				Type:        "array",
+				Type:        "hash",
 			},
 			"name": {
 				Description: "Name of the new machine. Will be generated if omitted.",
@@ -1035,7 +1049,13 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if env, ok := args["env"]; ok {
-				cmdArgs = append(cmdArgs, "--env", env)
+				items, err := shlex.Split(env)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse env: %w", err)
+				}
+				for _, item := range items {
+					cmdArgs = append(cmdArgs, "--env", item)
+				}
 			}
 
 			if hostDedicationID, ok := args["host-dedication-id"]; ok {
@@ -1047,7 +1067,13 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if metadata, ok := args["metadata"]; ok {
-				cmdArgs = append(cmdArgs, "--metadata", metadata)
+				items, err := shlex.Split(metadata)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse metadata: %w", err)
+				}
+				for _, item := range items {
+					cmdArgs = append(cmdArgs, "--metadata", item)
+				}
 			}
 
 			if name, ok := args["name"]; ok {
@@ -1390,7 +1416,7 @@ var MachineCommands = []FlyCommand{
 			"env": {
 				Description: "Set of environment variables in the form of NAME=VALUE pairs.",
 				Required:    false,
-				Type:        "array",
+				Type:        "hash",
 			},
 			"host-dedication-id": {
 				Description: "The dedication id of the reserved hosts for your organization (if any)",
@@ -1405,7 +1431,7 @@ var MachineCommands = []FlyCommand{
 			"metadata": {
 				Description: "Set of metadata in the form of NAME=VALUE pairs.",
 				Required:    false,
-				Type:        "array",
+				Type:        "hash",
 			},
 			"port": {
 				Description: "The external ports and handlers for services, in the format: port[:machinePort][/protocol[:handler[:handler...]]])",
@@ -1499,7 +1525,13 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if env, ok := args["env"]; ok {
-				cmdArgs = append(cmdArgs, "--env", env)
+				items, err := shlex.Split(env)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse env: %w", err)
+				}
+				for _, item := range items {
+					cmdArgs = append(cmdArgs, "--env", item)
+				}
 			}
 
 			if hostDedicationID, ok := args["host-dedication-id"]; ok {
@@ -1507,7 +1539,13 @@ var MachineCommands = []FlyCommand{
 			}
 
 			if metadata, ok := args["metadata"]; ok {
-				cmdArgs = append(cmdArgs, "--metadata", metadata)
+				items, err := shlex.Split(metadata)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse metadata: %w", err)
+				}
+				for _, item := range items {
+					cmdArgs = append(cmdArgs, "--metadata", item)
+				}
 			}
 
 			if port, ok := args["port"]; ok {
