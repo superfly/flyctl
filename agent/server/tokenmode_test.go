@@ -47,8 +47,8 @@ func TestTokenModeFor(t *testing.T) {
 		local  bool
 		legacy bool
 		user   viewer
-		flag  func(context.Context, int) (bool, error)
-		want  bool
+		flag   func(context.Context, int) (bool, error)
+		want   bool
 	}{
 		"flag on, local off": {
 			user: user(42), flag: flag(true, nil),
