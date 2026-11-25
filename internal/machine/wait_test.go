@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -119,7 +120,7 @@ func TestWaitForFirstStartVersion(t *testing.T) {
 			ctx := flapsutil.NewContextWithClient(t.Context(), &mock.FlapsClient{WaitFunc: client.Wait})
 			m := &fly.Machine{ID: "m1", Version: tc.version, Config: &fly.MachineConfig{Restart: &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}}}
 			m.Events = []*fly.MachineEvent{{ID: "01JC1V3CW1VEKNMHX7MJ70DE1D", Type: "launch", Status: "created"}}
-			err = WaitForLaunch(ctx, "app", m, 5*time.Second)
+			_, err = WaitForLaunch(ctx, "app", m, 5*time.Second)
 			if got := calls.Load(); got != tc.wantCalls {
 				t.Errorf("wait calls = %d, want %d", got, tc.wantCalls)
 			}
@@ -135,6 +136,113 @@ func TestWaitForFirstStartVersion(t *testing.T) {
 				}
 			case err != nil:
 				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestWaitForAutoDestroyedLaunch(t *testing.T) {
+	const cursor = "01M88HFCDT61KY94NYM9HWM0A4"
+	start := &fly.MachineEvent{ID: "01M88HFHQ2JRD6X01GVKNZWZBM", Type: "start", Status: "started"}
+	missing := &flaps.FlapsError{ResponseStatusCode: http.StatusNotFound, OriginalError: errors.New("machine not found")}
+	for _, tc := range []struct {
+		name      string
+		current   *fly.Machine
+		wantState string
+		wantWaits int
+		wantErr   string
+	}{
+		{"confirmed", &fly.Machine{ID: "m", Version: "v", State: "destroyed", Events: []*fly.MachineEvent{start}}, "destroyed", 1, ""},
+		{"never started", &fly.Machine{ID: "m", Version: "v", State: "destroyed"}, "", 1, "before flyctl could confirm it started"},
+		{"replaced", &fly.Machine{ID: "m", Version: "other", State: "destroyed", Events: []*fly.MachineEvent{start}}, "", 1, "before flyctl could confirm it started"},
+		{"earlier start", &fly.Machine{ID: "m", Version: "v", State: "destroyed", Events: []*fly.MachineEvent{{ID: "01M88HFCDDGNKKGXM6KR6JT3V2", Type: "start", Status: "started"}}}, "", 1, "before flyctl could confirm it started"},
+		{"malformed event ID", &fly.Machine{ID: "m", Version: "v", State: "destroyed", Events: []*fly.MachineEvent{{ID: "zzzz", Type: "start", Status: "started"}}}, "", 1, "before flyctl could confirm it started"},
+		{"inherited status", &fly.Machine{ID: "m", Version: "v", State: "destroyed", Events: []*fly.MachineEvent{{ID: start.ID, Type: "update", Status: "started"}}}, "", 1, "before flyctl could confirm it started"},
+		{"start requested", &fly.Machine{ID: "m", Version: "v", State: "destroyed", Events: []*fly.MachineEvent{{ID: start.ID, Type: "start", Status: "starting"}}}, "", 1, "before flyctl could confirm it started"},
+		{"missing record", nil, "started", 2, ""},
+		{"still creating", &fly.Machine{ID: "m", Version: "v", State: "created"}, "started", 2, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			waits, gets := 0, 0
+			client := &mock.FlapsClient{
+				WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+					waits++
+					if waits == 1 {
+						return missing
+					}
+					return nil
+				},
+				GetFunc: func(_ context.Context, app, id string) (*fly.Machine, error) {
+					gets++
+					if app != "app" || id != "m" {
+						t.Fatalf("unexpected lookup %s/%s", app, id)
+					}
+					if tc.current == nil {
+						return nil, missing
+					}
+
+					return tc.current, nil
+				},
+			}
+			ctx := flapsutil.NewContextWithClient(t.Context(), client)
+			m := &fly.Machine{ID: "m", Version: "v", Config: &fly.MachineConfig{AutoDestroy: true}, Events: []*fly.MachineEvent{{ID: cursor, Type: "launch", Status: "created"}}}
+			state, err := WaitForLaunch(ctx, "app", m, 5*time.Second)
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("error = %v, want %q", err, tc.wantErr)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if waits != tc.wantWaits || gets != 1 || state != tc.wantState {
+				t.Fatalf("state=%q err=%v waits=%d gets=%d", state, err, waits, gets)
+			}
+		})
+	}
+}
+
+func TestPinnedAutoDestroyReadback(t *testing.T) {
+	const cursor = "01M88HFCDT61KY94NYM9HWM0A4"
+	missing := flaps.ErrFlapsNotFound
+	for _, tc := range []struct {
+		name      string
+		readErr   error
+		wantRetry bool
+	}{
+		{"network error", io.ErrUnexpectedEOF, true},
+		{"request timeout", &flaps.FlapsError{ResponseStatusCode: http.StatusRequestTimeout}, true},
+		{"rate limited", &flaps.FlapsError{ResponseStatusCode: http.StatusTooManyRequests}, true},
+		{"unavailable", &flaps.FlapsError{ResponseStatusCode: http.StatusServiceUnavailable}, true},
+		{"missing", &flaps.FlapsError{ResponseStatusCode: http.StatusNotFound}, false},
+		{"forbidden", &flaps.FlapsError{ResponseStatusCode: http.StatusForbidden}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			waits, gets := 0, 0
+			client := &mock.FlapsClient{
+				WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+					waits++
+					if waits == 1 {
+						return &flaps.FlapsError{ResponseStatusCode: http.StatusRequestTimeout, OriginalError: errors.New("deadline_exceeded: machine failed to reach desired state, started, currently created")}
+					}
+					return missing
+				},
+				GetFunc: func(context.Context, string, string) (*fly.Machine, error) {
+					gets++
+					if gets == 1 {
+						return nil, tc.readErr
+					}
+					return &fly.Machine{ID: "m", Version: "v", State: "destroyed", Events: []*fly.MachineEvent{{ID: "01M88HFHQ2JRD6X01GVKNZWZBM", Type: "start", Status: "started"}}}, nil
+				},
+			}
+			ctx := flapsutil.NewContextWithClient(t.Context(), client)
+			m := &fly.Machine{ID: "m", Version: "v", Config: &fly.MachineConfig{AutoDestroy: true, Restart: &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}}, Events: []*fly.MachineEvent{{ID: cursor, Type: "launch", Status: "created"}}}
+			state, err := WaitForLaunch(ctx, "app", m, 5*time.Second)
+			if tc.wantRetry {
+				if err != nil || state != "destroyed" || gets != 2 {
+					t.Fatalf("state=%q gets=%d err=%v", state, gets, err)
+				}
+			} else if !errors.Is(err, missing) || gets != 1 {
+				t.Fatalf("gets=%d err=%v", gets, err)
 			}
 		})
 	}

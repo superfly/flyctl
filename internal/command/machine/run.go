@@ -491,12 +491,20 @@ func runMachineRun(ctx context.Context) error {
 
 	s.Start()
 	// wait for machine to be started
-	err = tracing.WorkflowPhase(ctx, "wait_for_start", func(ctx context.Context) error {
+	launchState, err := tracing.WorkflowStep(ctx, "wait_for_start", func(ctx context.Context) (string, error) {
 		return mach.WaitForLaunch(ctx, app.Name, machine, time.Minute*5)
 	})
 	s.Stop()
 	if err != nil {
 		return err
+	}
+
+	if launchState == fly.MachineStateDestroyed {
+		if interact {
+			return fmt.Errorf("Machine %s started and was destroyed before the console could connect", id)
+		}
+		fmt.Fprintf(io.Out, "Machine %s started and was destroyed\n", id)
+		return nil
 	}
 
 	if interact {
