@@ -38,11 +38,12 @@ func New() *cobra.Command {
 Machines receive as environment variables at runtime. Names are case
 sensitive and stored as-is.
 
-Use ` + "`fly secrets set`" + ` and ` + "`fly secrets unset`" + ` to change secrets; by
-default each change restarts the app's Machines so they pick it up. Add
-` + "`--stage`" + ` to change secrets without restarting, then apply staged changes
-later with ` + "`fly secrets deploy`" + ` or your next ` + "`fly deploy`" + `. Use
-` + "`fly secrets list`" + ` to see names, digests and deployment status.`
+Use ` + "`fly secrets set`" + ` and ` + "`fly secrets unset`" + ` to change secrets; by default
+each change updates the app's Machines that Fly Launch manages and restarts
+the running ones so they pick it up. Add ` + "`--stage`" + ` to change secrets without
+restarting, then apply staged changes later with ` + "`fly secrets deploy`" + ` or
+your next ` + "`fly deploy`" + `. Use ` + "`fly secrets list`" + ` to see names, digests and
+deployment status.`
 
 		short = "Manage app secrets"
 	)

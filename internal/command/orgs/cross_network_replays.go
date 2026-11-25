@@ -41,9 +41,10 @@ func newCrossNetworkReplaysStatus() *cobra.Command {
 		long = `Show whether apps in an organization can replay requests to apps on other
 networks in the same organization.
 
-Choose the organization with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); otherwise
-you pick from the organizations you administer in a terminal, and without
-a terminal the organization is required.`
+Choose the organization with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `). Without it, a slug
+passed as an argument is used; with neither, you pick from the organizations
+you administer in a terminal, and without a terminal the organization is
+required.`
 		short = "Show cross-network replay status"
 		usage = "status"
 	)
@@ -91,10 +92,11 @@ func newCrossNetworkReplaysEnable() *cobra.Command {
 		long = `Allow apps in an organization to replay requests to apps on different
 networks within the same organization.
 
-Choose the organization to change with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); otherwise
-you pick from the organizations you administer in a terminal, and without
-a terminal the organization is required. You're asked to confirm unless you pass ` + "`--yes`" + `, which is
-required without a terminal.`
+Choose the organization to change with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `). Without it, a
+slug passed as an argument is used; with neither, you pick from the
+organizations you administer in a terminal, and without a terminal the
+organization is required. You're asked to confirm unless you pass ` + "`--yes`" + `,
+which is required without a terminal.`
 		short = "Enable cross-network replays"
 		usage = "enable"
 	)
@@ -145,13 +147,14 @@ func runCrossNetworkReplaysEnable(ctx context.Context) error {
 
 func newCrossNetworkReplaysDisable() *cobra.Command {
 	const (
-		long = `Limit request replays in an organization to apps on the same network.
-This can break existing replay traffic that crosses networks.
+		long = `Limit request replays in an organization to apps on the same network. This
+can break existing replay traffic that crosses networks.
 
-Choose the organization to change with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); otherwise
-you pick from the organizations you administer in a terminal, and without
-a terminal the organization is required. You're asked to confirm unless you pass ` + "`--yes`" + `, which is
-required without a terminal.`
+Choose the organization to change with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `). Without it, a
+slug passed as an argument is used; with neither, you pick from the
+organizations you administer in a terminal, and without a terminal the
+organization is required. You're asked to confirm unless you pass ` + "`--yes`" + `,
+which is required without a terminal.`
 		short = "Disable cross-network replays"
 		usage = "disable"
 	)

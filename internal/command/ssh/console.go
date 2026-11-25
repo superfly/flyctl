@@ -130,9 +130,9 @@ func newConsole() *cobra.Command {
 	const (
 		short = `Open a shell or run a command on a Machine over SSH`
 		long  = `Open an interactive shell on one of the app's started Machines, or run a
-single command with ` + "`--command`" + `. A shell gets a pseudo-terminal; a
-command does not unless you pass ` + "`--pty`" + `. You connect as root unless
-you set ` + "`--user`" + `.
+single command with ` + "`--command`" + `. A shell gets a pseudo-terminal, also when
+the command is just sh or bash; any other command does not unless you pass
+` + "`--pty`" + `. You connect as root unless you set ` + "`--user`" + `.
 
 By default the first started Machine is used (filtered by ` + "`--region`" + `
 or ` + "`--process-group`" + ` if set). Pick one with ` + "`--machine`" + `, or choose

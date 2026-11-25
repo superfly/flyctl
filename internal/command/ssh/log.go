@@ -20,9 +20,9 @@ func newLog() *cobra.Command {
 	const (
 		short = `List the SSH certificates issued for an organization`
 		long  = `List the SSH certificates that have been issued for an organization,
-printing each certificate in full. The organization comes from ` + "`--org`" + `
-or the first argument; otherwise you pick one from a list. Use ` + "`--json`" + `
-for machine-readable output.`
+printing each certificate in full. The organization comes from ` + "`--org`" + `,
+` + "`FLY_ORG`" + ` or the first argument, in that order; otherwise you pick one from
+a list in a terminal. Use ` + "`--json`" + ` for machine-readable output.`
 		usage = "log"
 	)
 

@@ -19,9 +19,10 @@ func newReplaySourcesList() *cobra.Command {
 		long = `List the slugs of other organizations allowed to replay requests to apps
 in an organization.
 
-Choose the organization with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `); otherwise you pick
-from the organizations you administer in a terminal, and without a
-terminal the organization is required.`
+Choose the organization with ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `). Without it, a slug
+passed as an argument is used; with neither, you pick from the organizations
+you administer in a terminal, and without a terminal the organization is
+required.`
 		short = "List allowed replay source organizations"
 		usage = "list"
 	)

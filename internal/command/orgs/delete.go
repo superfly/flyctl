@@ -17,10 +17,11 @@ func newDelete() *cobra.Command {
 	const (
 		long = `Delete an organization. This is not reversible.
 
-Pass the organization's slug as an argument or with ` + "`FLY_ORG`" + `; otherwise
-you pick from the organizations you administer in a terminal. You're asked
-to confirm unless you pass ` + "`--yes`" + `; without a terminal, both the slug and
-` + "`--yes`" + ` are required.`
+Pass the organization's slug as an argument. If ` + "`FLY_ORG`" + ` is set, it's used
+instead and the argument is ignored, so check which organization the prompt
+names before you confirm. With neither, you pick from the organizations you
+administer in a terminal. You're asked to confirm unless you pass ` + "`--yes`" + `;
+without a terminal, both an organization and ` + "`--yes`" + ` are required.`
 		short = "Delete an organization"
 		usage = "delete [-yes] [slug]"
 	)

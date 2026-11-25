@@ -21,9 +21,9 @@ func newShow() *cobra.Command {
 		long = `Show an organization's name, slug and type, your role in it, and its
 members with their roles.
 
-Pass the slug as an argument or with ` + "`FLY_ORG`" + `; otherwise you pick an
-organization from a list in a terminal, and without a terminal the slug is
-required.`
+Pass the slug as an argument. If ` + "`FLY_ORG`" + ` is set, it's used instead and the
+argument is ignored. With neither, you pick an organization from a list in a
+terminal; without a terminal, one of them is required.`
 		short = "Show information about an organization"
 		usage = "show [slug]"
 	)

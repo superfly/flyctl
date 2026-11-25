@@ -23,11 +23,14 @@ func newSet() (cmd *cobra.Command) {
 arguments. Use NAME=- to read that secret's value from standard input
 (piped input only, up to 64 KiB).
 
-After saving the secrets, the command updates all of the app's existing
-Machines with the currently deployed configuration and image (not your
-local fly.toml) so they pick up the new values, which restarts them. With
-` + "`--detach`" + `, it doesn't wait for health checks. If the app has never been
-deployed and has no Machines, the secrets are saved for the first deploy.
+After saving the secrets, the command updates the app's Machines that Fly
+Launch manages (not ones made with ` + "`fly machine run`" + `), each with its current
+configuration and image rather than your local fly.toml, so they pick up the
+new values. Running Machines are restarted and stopped ones stay stopped,
+unless the app's deployed configuration uses the bluegreen strategy, which
+replaces the Machines. With ` + "`--detach`" + `, it doesn't wait for health checks.
+If the app has never been deployed and has no Machines, the secrets are
+saved for the first deploy.
 
 With ` + "`--stage`" + `, the secrets are saved but no Machines are updated; run
 ` + "`fly secrets deploy`" + ` or ` + "`fly deploy`" + ` to apply them.`

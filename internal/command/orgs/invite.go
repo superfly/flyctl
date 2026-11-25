@@ -22,10 +22,11 @@ func newInvite() *cobra.Command {
 		long = `Invite a user by email to join an organization. The invitation is sent
 by email, and the user stays pending until they accept it.
 
-Pass the organization slug and the email address as arguments. With no
-slug, you pick from the organizations you administer in a terminal, and
-with no email you're prompted for one; without a terminal, both are
-required.`
+Pass the organization slug and the email address as arguments. If ` + "`FLY_ORG`" + `
+is set, it's used instead of the slug, but the email must still be the
+second argument. With neither, you pick from the organizations you
+administer in a terminal, and with no email you're prompted for one; without
+a terminal, both the organization and the email are required.`
 		short = "Invite a user to an organization by email"
 		usage = "invite [slug] [email]"
 	)

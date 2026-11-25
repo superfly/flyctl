@@ -13,14 +13,16 @@ import (
 
 func newDeploy() (cmd *cobra.Command) {
 	const (
-		long = `Apply staged secret changes, such as those made with ` + "`--stage`" + `, to
-an app's Machines. The command updates all of the app's existing Machines
-with the currently deployed configuration and image (not your local
-fly.toml), which restarts them. With ` + "`--detach`" + `, it doesn't wait for
-health checks.
+		long = `Apply staged secret changes, such as those made with ` + "`--stage`" + `, to an app's
+Machines. The command updates the app's Machines that Fly Launch manages
+(not ones made with ` + "`fly machine run`" + `), each with its current configuration
+and image rather than your local fly.toml. Running Machines are restarted
+and stopped ones stay stopped, unless the app's deployed configuration uses
+the bluegreen strategy, which replaces the Machines. With ` + "`--detach`" + `, it
+doesn't wait for health checks.
 
-The app must already be deployed and have Machines; otherwise the command
-fails and you should run ` + "`fly deploy`" + ` instead.`
+The app must already be deployed and have Machines that Fly Launch manages;
+otherwise the command fails and you should run ` + "`fly deploy`" + ` instead.`
 		short = "Deploy staged secrets to an app's Machines"
 		usage = "deploy [flags]"
 	)

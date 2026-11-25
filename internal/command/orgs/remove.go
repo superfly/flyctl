@@ -18,11 +18,13 @@ func newRemove() *cobra.Command {
 		long = `Remove a member from an organization, identified by email. The user must
 already be a member; if no member has that email, the command fails.
 
-Pass the organization slug and the email address as arguments. With no
-slug, you pick from the organizations you administer in a terminal, and
-with no email you're prompted for one; without a terminal, both are
-required. There's no confirmation step. Afterwards, the command prints a
-link to the organization's offboarding checklist.`
+Pass the organization slug and the email address as arguments. If ` + "`FLY_ORG`" + `
+is set, it's used instead of the slug, but the email must still be the
+second argument. With neither, you pick from the organizations you
+administer in a terminal, and with no email you're prompted for one; without
+a terminal, both the organization and the email are required. There's no
+confirmation step. Afterwards, the command prints a link to the
+organization's offboarding checklist.`
 		short = "Remove a user from an organization"
 		usage = "remove [slug] [email]"
 	)

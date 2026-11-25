@@ -16,14 +16,16 @@ import (
 func newImport() (cmd *cobra.Command) {
 	const (
 		long = `Set one or more encrypted secrets for an app from standard input, one
-NAME=VALUE pair per line, for example ` + "`fly secrets import < .env`" + `.
-Blank lines and lines starting with # are skipped. Values can be wrapped in
-single or double quotes, and triple double quotes (""") allow multi-line
-values.
+NAME=VALUE pair per line, for example ` + "`cat .env | fly secrets import`" + `. Blank
+lines and lines starting with # are skipped. Values can be wrapped in single
+or double quotes, and triple double quotes (""") allow multi-line values.
+Outside double quotes, # starts a comment, even in the middle of a value or
+inside single quotes; put a value that contains # in double quotes.
 
-Like ` + "`fly secrets set`" + `, it then updates all of the app's existing Machines
-with the currently deployed configuration and image, which restarts them.
-With ` + "`--stage`" + `, the secrets are saved but no Machines are updated; run
+Like ` + "`fly secrets set`" + `, it then updates the app's Machines that Fly Launch
+manages, each with its current configuration and image, and restarts the
+running ones (or replaces them, with the bluegreen strategy). With
+` + "`--stage`" + `, the secrets are saved but no Machines are updated; run
 ` + "`fly secrets deploy`" + ` or ` + "`fly deploy`" + ` to apply them.`
 		short = `Set secrets as NAME=VALUE pairs from stdin`
 		usage = "import [flags]"

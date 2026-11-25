@@ -31,14 +31,16 @@ func newIssue() *cobra.Command {
 	const (
 		long = `Issue a short-lived SSH certificate for an organization, so you can reach
 its Machines with your own SSH client over WireGuard. The organization comes
-from ` + "`--org`" + ` or the first argument; otherwise you pick one from a list.
-The certificate is valid for 24 hours unless you set ` + "`--hours`" + ` (1-72).
+from ` + "`--org`" + `, ` + "`FLY_ORG`" + ` or the first argument, in that order; otherwise you
+pick one from a list in a terminal. The certificate is valid for 24 hours
+unless you set ` + "`--hours`" + ` (1-72).
 
-With ` + "`--agent`" + `, the key and certificate are added to your running SSH
-agent and nothing is written to disk. Otherwise they are written to a private
-key file and a matching -cert.pub file; pass the path as an argument, or you
-are prompted for it. Existing files are not replaced unless you pass
-` + "`--overwrite`" + ` and the file is a key flyctl generated.`
+With ` + "`--agent`" + `, the key and certificate are added to your running SSH agent
+and nothing is written to disk. Otherwise they are written to a private key
+file and a matching -cert.pub file; pass the path as the second argument,
+after the organization, or you are prompted for it. Existing files are never
+replaced without ` + "`--overwrite`" + `, and even then only if the key file is one
+flyctl generated.`
 		short = `Issue a new SSH credential`
 		usage = "issue [org] [path]"
 	)

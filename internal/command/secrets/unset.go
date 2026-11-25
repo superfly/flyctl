@@ -17,10 +17,12 @@ func newUnset() (cmd *cobra.Command) {
 	const (
 		long = `Remove one or more secrets from an app, by name.
 
-After removing the secrets, the command updates all of the app's existing
-Machines with the currently deployed configuration and image (not your
-local fly.toml) so the variables are gone, which restarts them. With
-` + "`--detach`" + `, it doesn't wait for health checks.
+After removing the secrets, the command updates the app's Machines that Fly
+Launch manages (not ones made with ` + "`fly machine run`" + `), each with its current
+configuration and image rather than your local fly.toml, so the variables
+are gone. Running Machines are restarted and stopped ones stay stopped,
+unless the app's deployed configuration uses the bluegreen strategy, which
+replaces the Machines. With ` + "`--detach`" + `, it doesn't wait for health checks.
 
 With ` + "`--stage`" + `, the secrets are removed but no Machines are updated;
 running Machines keep the old values until you run ` + "`fly secrets deploy`" + `
