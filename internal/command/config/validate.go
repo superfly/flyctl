@@ -19,7 +19,7 @@ func newValidate() (cmd *cobra.Command) {
 services, processes, mounts and other sections. Validation runs locally in
 flyctl, on fly.toml in the working directory or the file given with
 --config; with no local file, it checks the app's deployed configuration. An
-app name is required, from --app or the file's app field.
+app name is required, from --app, FLY_APP or the file's app field.
 
 --strict also reports sections and keys flyctl doesn't recognize. The
 command exits with an error when the configuration isn't valid.`

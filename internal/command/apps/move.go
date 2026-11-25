@@ -26,14 +26,15 @@ import (
 func newMove() *cobra.Command {
 	const (
 		long = `Move an app to another organization you belong to. Name the target with
---org, or pick it from a list in a terminal; without a terminal, --org is
-required.
+--org or FLY_ORG, or pick it from a list in a terminal; without a terminal,
+one of them is required.
 
 Moving updates and restarts every Machine in the app, so expect downtime,
 and the app may not come back healthy if it relies on services in its
 current organization. You're asked to confirm first; pass --yes to skip
 that, and without a terminal --yes is required. If the app has a Tigris
-bucket for statics, the bucket moves with it.`
+bucket for statics, the bucket moves with it. Check that every Machine came
+back with ` + "`fly status`" + `.`
 		short = "Move an app to another organization"
 		usage = "move <app name>"
 	)

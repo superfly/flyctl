@@ -21,7 +21,7 @@ func newEnv() (cmd *cobra.Command) {
 		long  = `Show the app's secrets and environment variables, in two tables. Secrets are
 listed by name and digest only, never by value. Environment variables come
 from the [env] section of the app's deployed configuration, not your local
-fly.toml. The app comes from --app or fly.toml. Manage secrets with
+fly.toml. The app comes from --app, FLY_APP or fly.toml. Manage secrets with
 ` + "`fly secrets`" + `.`
 	)
 	cmd = command.New("env", short, long, runEnv,

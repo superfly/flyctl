@@ -21,8 +21,9 @@ func newSave() (cmd *cobra.Command) {
 	const (
 		short = "Save an app's config file"
 		long  = `Fetch the app's deployed configuration and write it to fly.toml in the
-working directory, or to the file given with --config. --json and --yaml
-write the same file name with a .json or .yaml extension instead.
+working directory, or to the file given with --config, which must already
+exist. --json and --yaml write the same file name with a .json or .yaml
+extension instead.
 
 If the file already exists, you're asked before it's overwritten; pass --yes
 to overwrite without asking, and without a terminal --yes is required. The

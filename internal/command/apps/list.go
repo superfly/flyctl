@@ -28,10 +28,10 @@ import (
 func newList() *cobra.Command {
 	const (
 		long = `List the apps you can access in all your organizations, or only those in the
---org organization. Each row shows the app's name, owning organization,
-status and when it was last deployed, plus its network when any listed app
-is on a custom private network. --quiet prints only app names, and --json
-prints the full list as JSON.`
+organization given with --org or FLY_ORG. Each row shows the app's name,
+owning organization, status and when it was last deployed, plus its network
+when any listed app is on a custom private network. --quiet prints only app
+names, and --json prints the full list as JSON.`
 		short = "List apps"
 	)
 

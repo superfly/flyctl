@@ -44,10 +44,22 @@ plan: app name, organization, region, Machine size, and any databases or
 storage the app needs. Arguments after ` + "`--`" + ` go to the framework's scanner.
 
 By default the name comes from --name, an existing fly.toml or the directory
-name, the organization is your personal one (or --org), and the region is
-the fastest one for you (or --region). In a terminal you see the plan and
+name, the organization is --org, FLY_ORG or your personal one, and the
+region is --region, the primary_region of a fly.toml you launch with, or the
+fastest one for you. If the plan includes Managed Postgres in another
+region, the app launches there instead. In a terminal you see the plan and
 can adjust it in the Fly.io web UI before anything is created; --yes skips
 that question, and without a terminal the plan is used as is.
+
+If the plan includes a new Managed Postgres cluster, which is billed
+monthly, you're asked to confirm it after the app is created. --yes, or
+running without a terminal, creates it without asking; pass --no-db to leave
+it out.
+
+--path sets the directory to scan and to write fly.toml in. An existing
+fly.toml is looked for only in the working directory (or at --config), so
+one in a different --path directory is overwritten without asking, and the
+image is still built from the working directory.
 
 If a fly.toml already exists, you're asked whether to launch with it; with
 --yes or without a terminal, pass --copy-config to use it or

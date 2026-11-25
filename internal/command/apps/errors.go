@@ -14,8 +14,8 @@ import (
 func newErrors() (cmd *cobra.Command) {
 	const (
 		long = `Open the Sentry dashboard for the app's Sentry project in your browser,
-using a single sign-on link from Fly.io. The app comes from --app or
-fly.toml and must already have a Sentry project; create one with
+using a single sign-on link from Fly.io. The app comes from --app, FLY_APP
+or fly.toml and must already have a Sentry project; create one with
 ` + "`fly ext sentry create`" + `.`
 		short = `View application errors on Sentry.io`
 		usage = "errors"

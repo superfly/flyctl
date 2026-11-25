@@ -17,7 +17,7 @@ func New() *cobra.Command {
 	const (
 		short = "Open the app's dashboard in a browser"
 		long  = `Open the app's page in the Fly.io dashboard (https://fly.io/apps/<app>) in
-your browser. The app comes from --app or fly.toml. Use
+your browser. The app comes from --app, FLY_APP or fly.toml. Use
 ` + "`fly dashboard metrics`" + ` to open its metrics instead.`
 	)
 	cmd := command.New("dashboard", short, long, runDashboard,
@@ -41,7 +41,7 @@ func newDashboardMetrics() *cobra.Command {
 		short = "Open the app's metrics dashboard in a browser"
 		long  = `Open the app's metrics page in the Fly.io dashboard in your browser. With
 --grafana, open the app's dashboard on Fly.io's hosted Grafana
-(fly-metrics.net) instead. The app comes from --app or fly.toml.`
+(fly-metrics.net) instead. The app comes from --app, FLY_APP or fly.toml.`
 	)
 	cmd := command.New("metrics", short, long, runDashboardMetrics,
 		command.RequireSession,

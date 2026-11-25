@@ -18,14 +18,16 @@ import (
 
 func newRestart() *cobra.Command {
 	const (
-		long = `Restart every started Machine in an app, one at a time, waiting for each to
-start and pass its health checks unless --skip-health-checks is set. Stopped
-and suspended Machines are left alone.
+		long = `Restart every started Fly Launch Machine in an app, one at a time, waiting
+for each to start and pass its health checks unless --skip-health-checks is
+set. Stopped and suspended Machines are left alone, and so are release
+command and console Machines and those created outside Fly Launch, such as
+with ` + "`fly machine run`" + `.
 
 Pass the app name as an argument; without one, the app comes from FLY_APP or
 fly.toml (this command has no --app flag). Postgres apps are refused: use
-` + "`fly postgres restart`" + ` for those. To restart specific Machines, use
-` + "`fly machine restart`" + `.`
+` + "`fly postgres restart`" + ` for those. To restart specific Machines or those
+outside Fly Launch, use ` + "`fly machine restart`" + `.`
 		short = "Restart an app's running Machines"
 		usage = "restart <app name>"
 	)
