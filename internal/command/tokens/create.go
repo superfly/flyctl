@@ -425,6 +425,9 @@ func runOrgRead(ctx context.Context) error {
 			return err
 		}
 
+		if len(perms) == 0 {
+			return errors.New("the currently set token string has no permission token in it, can't proceed")
+		}
 		if len(perms) > 1 {
 			return fmt.Errorf("the currently set token string has more than one permission token in it, can't proceed")
 		}
