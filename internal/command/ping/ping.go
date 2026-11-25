@@ -272,20 +272,37 @@ func run(ctx context.Context) error {
 	stp := make(chan os.Signal, 1)
 	signal.Notify(stp, syscall.SIGINT, syscall.SIGTERM)
 
-	for i := 0; count == 0 || i <= count; i++ {
-		select {
-		case <-stp:
-			return nil
-		case <-ticker.C:
-		}
-
+	return sendProbes(count, ticker.C, stp, max(interval, time.Second), func(seq int) error {
 		for target := range targets {
 			// BUG(tqbf): stop re-parsing these stupid addresses
-			_, err = pinger.WriteTo(EchoRequest(0, i, time.Now(), pad), &net.IPAddr{IP: net.ParseIP(target)})
+			_, err := pinger.WriteTo(EchoRequest(0, seq, time.Now(), pad), &net.IPAddr{IP: net.ParseIP(target)})
 			if err != nil {
 				return err
 			}
 		}
+
+		return nil
+	})
+}
+
+// sendProbes calls send on every tick, count times or until stopped if count
+// is 0. After the last probe it waits for its replies to arrive.
+func sendProbes(count int, ticks <-chan time.Time, stop <-chan os.Signal, replyWait time.Duration, send func(seq int) error) error {
+	for i := 0; count == 0 || i < count; i++ {
+		select {
+		case <-stop:
+			return nil
+		case <-ticks:
+		}
+
+		if err := send(i); err != nil {
+			return err
+		}
+	}
+
+	select {
+	case <-stop:
+	case <-time.After(replyWait):
 	}
 
 	return nil

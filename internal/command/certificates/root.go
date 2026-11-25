@@ -281,7 +281,11 @@ func runCertificatesList(ctx context.Context) error {
 
 	if resp.NextCursor != "" {
 		io := iostreams.FromContext(ctx)
-		fmt.Fprintf(io.Out, "\nShowing %d of %d certificates. Use the Machines API to paginate through all results.\n",
+		out := io.Out
+		if config.FromContext(ctx).JSONOutput {
+			out = io.ErrOut // keep stdout valid JSON
+		}
+		fmt.Fprintf(out, "\nShowing %d of %d certificates. Use the Machines API to paginate through all results.\n",
 			len(resp.Certificates), resp.TotalCount)
 	}
 

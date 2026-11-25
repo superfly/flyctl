@@ -77,6 +77,10 @@ func run(ctx context.Context) (err error) {
 		return errors.New("--app required when --select flag provided")
 	}
 
+	if appName == "" && len(args) < 2 {
+		return errors.New("a remote host argument is required when no app is set with --app, FLY_APP or fly.toml")
+	}
+
 	if orgSlug != "" {
 		if _, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, orgSlug); err != nil {
 			return err
