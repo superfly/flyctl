@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -17,10 +18,6 @@ import (
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
 )
-
-// mpgJSONBaseRef is the commit whose text output the MPG JSON work must not
-// change. FLYCTL_MPGJSON_BASE_BIN may point at a prebuilt binary instead.
-const mpgJSONBaseRef = "review/mpgjson-base"
 
 // mpgJSONCommand is one way of spelling an MPG creation command.
 type mpgJSONCommand struct {
@@ -287,15 +284,15 @@ func TestMPGJSONStdout(t *testing.T) {
 				return
 			}
 			if base == "" {
-				t.Skipf("no base binary for %s", mpgJSONBaseRef)
+				t.Skip("no base binary available for text comparison")
 			}
 			baseOut, baseErr, baseCode := runMPGJSONBinary(t, base, work, row.config, row.env, row.baseArgs)
 			require.Equal(t, baseCode, code, msg)
 			if l.usage {
 				baseOut, stdout = maskMPGJSONUsage(baseOut), maskMPGJSONUsage(stdout)
 			}
-			require.Equal(t, normalizeMPGJSONOutput(baseOut), normalizeMPGJSONOutput(stdout), "stdout differs from %s\n%s", mpgJSONBaseRef, msg)
-			require.Equal(t, normalizeMPGJSONOutput(baseErr), normalizeMPGJSONOutput(stderr), "stderr differs from %s\n%s", mpgJSONBaseRef, msg)
+			require.Equal(t, normalizeMPGJSONOutput(baseOut), normalizeMPGJSONOutput(stdout), "stdout differs from base binary\n%s", msg)
+			require.Equal(t, normalizeMPGJSONOutput(baseErr), normalizeMPGJSONOutput(stderr), "stderr differs from base binary\n%s", msg)
 		})
 	}
 }
@@ -431,6 +428,9 @@ func mpgJSONModuleRoot(t *testing.T) string {
 // panic handler runs and the version string is the same for both binaries.
 func buildFlyctl(t *testing.T, src, out string) string {
 	t.Helper()
+	if runtime.GOOS == "windows" && !strings.HasSuffix(out, ".exe") {
+		out += ".exe"
+	}
 	const pkg = "github.com/superfly/flyctl/internal/buildinfo"
 	ldflags := fmt.Sprintf("-X '%s.buildDate=2000-01-01T00:00:00Z' -X '%s.buildVersion=9.9.9' -X '%s.commit=test'", pkg, pkg, pkg)
 	cmd := exec.CommandContext(t.Context(), "go", "build", "-buildvcs=false", "-tags", "production", "-ldflags", ldflags, "-o", out, ".")
@@ -443,18 +443,28 @@ func buildFlyctl(t *testing.T, src, out string) string {
 	return out
 }
 
-// buildMPGJSONBase builds mpgJSONBaseRef, or returns "" when the repository
-// does not have it.
+// buildMPGJSONBase builds the merge base with master, or returns "" when the
+// repository does not have it. CI fetches full history; local checkouts may
+// have only master. FLYCTL_MPGJSON_BASE_BIN can supply a prebuilt binary instead.
 func buildMPGJSONBase(t *testing.T, dir string) string {
 	t.Helper()
 	root := mpgJSONModuleRoot(t)
-	if err := exec.Command("git", "-C", root, "rev-parse", "--verify", "--quiet", mpgJSONBaseRef+"^{commit}").Run(); err != nil {
-		t.Logf("%s is not available; text rows are not compared", mpgJSONBaseRef)
+	var baseRef string
+	for _, ref := range []string{"origin/master", "master"} {
+		out, err := exec.Command("git", "-C", root, "merge-base", "HEAD", ref).Output()
+		if err == nil {
+			baseRef = strings.TrimSpace(string(out))
+			break
+		}
+	}
+	if baseRef == "" {
+		t.Log("merge base with master is not available; text rows are not compared")
 		return ""
 	}
+	t.Logf("comparing text output with merge base %s", baseRef)
 	src := filepath.Join(dir, "src")
 	require.NoError(t, os.MkdirAll(src, 0o755))
-	archive := exec.Command("git", "-C", root, "archive", mpgJSONBaseRef)
+	archive := exec.Command("git", "-C", root, "archive", baseRef)
 	extract := exec.Command("tar", "-x", "-C", src)
 	pipe, err := archive.StdoutPipe()
 	require.NoError(t, err)
