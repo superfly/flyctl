@@ -19,15 +19,19 @@ import (
 func newAllocate() *cobra.Command {
 	const (
 		long = `Allocate the public IP addresses fly recommends for the app, based on the
-services in its Machines' configs and the addresses it already has. A
-shared IPv4 and a dedicated IPv6 are the usual choice; a dedicated IPv4,
-which costs money, is suggested when a service needs one, such as UDP or
-non-HTTP TCP ports.
+services in its Machines' configs and the addresses it already has. A shared
+IPv4 and a dedicated IPv6 are the usual choice; a dedicated IPv4, which
+costs money, is suggested for TCP services that need one, such as on
+non-HTTP ports, and for UDP services, unless the app already has a dedicated
+IPv4, or a shared IPv4 and an IPv6. In that last case, run
+` + "`fly ips allocate-v4`" + ` yourself to serve UDP.
 
+If none of the app's Machines has services, fly first asks whether to go on.
 If the app already has the addresses it needs, fly says so and stops.
-Otherwise it shows what it will allocate and asks you to confirm; there's
-no flag to skip the prompt, so this needs a terminal. In scripts, use
-` + "`fly ips allocate-v4`" + ` and ` + "`fly ips allocate-v6`" + `.`
+Otherwise it shows what it will allocate and asks you to confirm. There's no
+flag to skip these prompts, so they need a terminal. In scripts, use
+` + "`fly ips allocate-v4 --shared`" + ` (or ` + "`fly ips allocate-v4 --yes`" + ` for a paid
+dedicated IPv4) and ` + "`fly ips allocate-v6`" + `.`
 		short = `Allocate recommended IP addresses`
 	)
 

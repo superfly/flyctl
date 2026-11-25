@@ -35,11 +35,10 @@ the name is looked up as AAAA; pass a type first to choose another.
 Types: AAAA and TXT (the types the server answers authoritatively),
 AAAA-NATIVE and TXT-NATIVE (resolved with Go's resolver; slower, but useful
 when diagnosing a DNS bug), and A and CNAME (to test recursive lookups).
-Names ending in .internal are queried without recursion.
 
-The organization is the one set with ` + "`-o`" + `, or else the app's
-organization (from ` + "`-a`" + ` or fly.toml). Starts the Fly agent if it isn't
-running.`
+The organization is the one set with ` + "`-o`" + ` or ` + "`FLY_ORG`" + `, or else the
+organization of the app from ` + "`-a`" + `, ` + "`FLY_APP`" + ` or fly.toml; without any of
+these, the command fails. Starts the Fly agent if it isn't running.`
 
 		short = "Make DNS requests against Fly.io's internal DNS server"
 	)

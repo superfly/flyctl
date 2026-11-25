@@ -34,9 +34,11 @@ your own WireGuard client, and ` + "`fly wireguard list`" + ` and
 func newWireguardList() *cobra.Command {
 	const (
 		short = "List all WireGuard peer connections"
-		long  = `List the WireGuard peers of an organization with their name, region and
-peer IP. Pass the organization slug as the argument; without it you pick
-one from a list. Use ` + "`--json`" + ` for machine-readable output.`
+		long  = `List the WireGuard peers of an organization with their name, region and peer
+IP. Pass the organization slug as the argument. Without it, ` + "`FLY_ORG`" + ` is
+used if set; otherwise you pick one from a list, or your personal
+organization is used if it's the only one you belong to. Use ` + "`--json`" + ` for
+machine-readable output.`
 	)
 	cmd := command.New("list [org]", short, long, runWireguardList,
 		command.RequireSession,
@@ -54,8 +56,11 @@ func newWireguardCreate() *cobra.Command {
 		short = "Add a WireGuard peer connection"
 		long  = `Create a WireGuard peer in an organization and write a configuration file
 for a standard WireGuard client. Arguments are positional: organization,
-region, peer name and output file. Without an organization you pick one
-from a list; region and name are optional.
+region, peer name and output file. Without an organization, ` + "`FLY_ORG`" + ` is
+used if set; otherwise you pick one from a list, or your personal
+organization is used if it's the only one you belong to. Region and name are
+optional; to leave them out but still give a file, pass empty strings, as in
+` + "`fly wireguard create my-org \"\" \"\" wg0.conf`" + `.
 
 The output file must not exist yet; pass "stdout" to print the configuration
 instead. Without a file argument you are prompted for one, and without a
@@ -80,9 +85,12 @@ the peer and create a new one.`
 func newWireguardRemove() *cobra.Command {
 	const (
 		short = "Remove a WireGuard peer connection"
-		long  = `Delete a WireGuard peer from an organization. Pass the organization and
-peer name as arguments; without them you pick from lists, and without a
-terminal both are required. See peer names with ` + "`fly wireguard list`" + `.`
+		long  = `Delete a WireGuard peer from an organization, immediately and without a
+confirmation prompt. Pass the organization and peer name as arguments.
+Without a name, you pick a peer from a list. Without an organization,
+` + "`FLY_ORG`" + ` is used if set; otherwise you pick one from a list, or your
+personal organization is used if it's the only one you belong to. Without a
+terminal, both are required. See peer names with ` + "`fly wireguard list`" + `.`
 	)
 	cmd := command.New("remove [org] [name]", short, long, runWireguardRemove,
 		command.RequireSession,
@@ -96,10 +104,11 @@ func newWireguardReset() *cobra.Command {
 	const (
 		short = "Reset the Fly agent's WireGuard peer for an organization"
 		long  = `Have the Fly agent replace the WireGuard peer it uses for an organization
-with a new one, and print the new peer's name. Try this when ` + "`fly ssh`" + `
-or ` + "`fly proxy`" + ` can't connect to that organization. Pass the organization
-slug as the argument; without it you pick one from a list. Starts the agent
-if it isn't running.`
+with a new one, and print the new peer's name. Try this when ` + "`fly ssh`" + ` or
+` + "`fly proxy`" + ` can't connect to that organization. Pass the organization slug
+as the argument. Without it, ` + "`FLY_ORG`" + ` is used if set; otherwise you pick
+one from a list, or your personal organization is used if it's the only one
+you belong to. Starts the agent if it isn't running.`
 	)
 	cmd := command.New("reset [org]", short, long, runWireguardReset,
 		command.RequireSession,

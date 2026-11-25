@@ -37,9 +37,10 @@ address it resolves to. With no target, it pings the WireGuard gateway, the
 first hop into the network, which checks that your WireGuard connection
 works.
 
-The organization is the one set with `+"`-o`"+`, or else the app's
-organization (from `+"`-a`"+` or fly.toml). Pings run until you press
-Ctrl+C unless you set `+"`--count`"+`.
+The organization is the one set with `+"`-o`"+` or `+"`FLY_ORG`"+`, or else the
+organization of the app from `+"`-a`"+`, `+"`FLY_APP`"+` or fly.toml; without any of
+these, the command fails. Pings run until you press Ctrl+C unless you set
+`+"`--count`"+`.
 `, "\n")
 		short = `Test connectivity with ICMP ping messages`
 	)

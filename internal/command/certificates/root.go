@@ -50,9 +50,9 @@ record options with ` + "`fly certs setup`" + `.`
 func newCertificatesList() *cobra.Command {
 	const (
 		short = "List certificates for an app"
-		long  = `List the certificates of the app from ` + "`--app`" + ` or fly.toml, with each
-hostname, its source (Fly-managed or custom) and its status. Only the first
-50 certificates are shown. See one hostname in detail with
+		long  = `List the certificates of the app from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml, with
+each hostname, its source (Fly-managed or custom) and its status. Only the
+first 50 certificates are shown. See one hostname in detail with
 ` + "`fly certs check`" + `.`
 	)
 	cmd := command.New("list", short, long, runCertificatesList,
@@ -73,10 +73,11 @@ func newCertificatesAdd() *cobra.Command {
 	const (
 		short = "Add a certificate for an app"
 		long  = `Request a Fly-managed TLS certificate for a hostname, such as
-www.example.com or *.example.com. fly prints the DNS records to create:
-A and AAAA records pointing at the app's IPs, plus a CNAME for the ACME
-DNS challenge for wildcard hostnames. If the app has no public IPs, run
-` + "`fly ips allocate`" + ` first.
+` + "`www.example.com`" + ` or ` + "`'*.example.com'`" + ` (quoted, so your shell doesn't expand
+the asterisk). fly prints the DNS records to create: A and AAAA records
+pointing at the app's IPs, plus a CNAME for the ACME DNS challenge for
+wildcard hostnames. If the app has no public IPs, run ` + "`fly ips allocate`" + `
+first.
 
 After creating the records, follow validation with ` + "`fly certs check`" + `,
 and see other DNS setups with ` + "`fly certs setup`" + `.`

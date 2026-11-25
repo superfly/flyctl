@@ -71,8 +71,8 @@ func newAllocatev6() *cobra.Command {
 		long = `Allocate a dedicated public IPv6 address to the app, without a prompt.
 
 With ` + "`--private`" + `, allocate a private Flycast IPv6 address instead, for
-traffic from inside Fly's private network; ` + "`--org`" + ` and ` + "`--network`" + `
-apply only to these. See the result with ` + "`fly ips list`" + `.`
+traffic from inside Fly's private network; ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `) and
+` + "`--network`" + ` apply only to these. See the result with ` + "`fly ips list`" + `.`
 		short = `Allocate an IPv6 address`
 	)
 

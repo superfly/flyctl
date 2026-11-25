@@ -28,11 +28,12 @@ WireGuard tunnel, and keep forwarding until you stop the command. The first
 argument is local:remote, or a single port to use for both, for example
 `+"`fly proxy 5432`"+` or `+"`fly proxy 15432:5432`"+`.
 
-The remote host defaults to <app>.internal for the app from `+"`-a`"+` or
-fly.toml, which reaches one of the app's Machines; pass a host name or 6PN
-address as the second argument to connect elsewhere, or use `+"`--select`"+`
-to choose a Machine from a list. With no app and no `+"`-o`"+`, you are
-prompted for an organization.
+The remote host defaults to <app>.internal for the app from `+"`-a`"+`, `+"`FLY_APP`"+`
+or fly.toml, which reaches one of the app's Machines; pass a host name or
+6PN address as the second argument to connect elsewhere, or use `+"`--select`"+`
+to choose a Machine from a list. With no app, pass the remote host yourself,
+and set the organization with `+"`-o`"+` or `+"`FLY_ORG`"+`, or you are prompted for it.
+When an app is set, its organization is used, whatever `+"`-o`"+` says.
 
 The local listener binds to 127.0.0.1 unless you change it with
 `+"`--bind-addr`"+`. Starts the Fly agent if it isn't running.`, "\n")

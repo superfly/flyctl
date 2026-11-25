@@ -18,9 +18,10 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		long = `List the public, private (Flycast) and egress IP addresses allocated to
-the app from ` + "`--app`" + ` or fly.toml, with each address's type and region.
-For the private addresses of individual Machines, use ` + "`fly ips private`" + `.`
+		long = `List the public, private (Flycast) and egress IP addresses allocated to the
+app from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml, with each address's type and
+region. For the private addresses of individual Machines, use
+` + "`fly ips private`" + `.`
 		short = `List allocated IP addresses`
 	)
 
