@@ -44,9 +44,9 @@ then use ` + "`fly postgres backup list`" + ` and ` + "`fly postgres backup rest
 func newBackupRestore() *cobra.Command {
 	const (
 		short = "Restore a Fly Postgres cluster into a new cluster"
-		long  = `Restore a Fly Postgres cluster's backups into a new single-machine
-cluster. The source cluster comes from --app or fly.toml and is not
-changed; the argument is the name of the new Postgres app to create.
+		long  = `Restore a Fly Postgres cluster's backups into a new single-machine cluster.
+The source cluster comes from --app, FLY_APP or fly.toml and is not changed;
+the argument is the name of the new Postgres app to create.
 
 The new cluster runs in the source primary's region with the same image
 (unless --image-ref is set), machine size and volume size. Use
@@ -193,10 +193,11 @@ func runBackupRestore(ctx context.Context) error {
 func newBackupCreate() *cobra.Command {
 	const (
 		short = "Create a backup of a Fly Postgres cluster"
-		long  = `Create a backup of a Fly Postgres cluster by running it on the primary.
-The Postgres app comes from --app or fly.toml. The primary needs at least
-512MB of memory. It works only on clusters managed by repmgr (Flex), the default for
-` + "`fly postgres create`" + `, and only after ` + "`fly postgres backup enable`" + `.
+		long  = `Create a backup of a Fly Postgres cluster by running it on the primary. The
+Postgres app comes from --app, FLY_APP or fly.toml. The primary needs at
+least 512MB of memory. It works only on clusters managed by repmgr (Flex),
+the default for ` + "`fly postgres create`" + `, and only after
+` + "`fly postgres backup enable`" + `.
 
 See existing backups with ` + "`fly postgres backup list`" + `.`
 
@@ -288,8 +289,8 @@ func newBackupEnable() *cobra.Command {
 	const (
 		short = "Enable backups on a Fly Postgres cluster"
 		long  = `Enable WAL-based backups on a Fly Postgres cluster. This creates a Tigris
-bucket for the backups and stores its details as a secret on the
-Postgres app, which comes from --app or fly.toml.
+bucket for the backups and stores its details as a secret on the Postgres
+app, which comes from --app, FLY_APP or fly.toml.
 
 The cluster must be managed by repmgr (Flex), the default for
 ` + "`fly postgres create`" + `, and its primary needs at least 512MB of memory. The
@@ -395,8 +396,9 @@ func newBackupList() *cobra.Command {
 	const (
 		short = "List backups of a Fly Postgres cluster"
 		long  = `List the backups of a Fly Postgres cluster. The Postgres app comes from
---app or fly.toml. It works only on clusters managed by repmgr (Flex), the default for
-` + "`fly postgres create`" + `, and only after ` + "`fly postgres backup enable`" + `.
+--app, FLY_APP or fly.toml. It works only on clusters managed by repmgr
+(Flex), the default for ` + "`fly postgres create`" + `, and only after
+` + "`fly postgres backup enable`" + `.
 
 Restore one into a new cluster with ` + "`fly postgres backup restore`" + `.`
 
@@ -508,7 +510,8 @@ func newBackupConfigShow() *cobra.Command {
 	const (
 		short = "Show backup configuration"
 		long  = `Show the backup configuration of a Fly Postgres cluster, read from its
-primary. The Postgres app comes from --app or fly.toml. It works only on clusters managed by repmgr (Flex), the default for
+primary. The Postgres app comes from --app, FLY_APP or fly.toml. It works
+only on clusters managed by repmgr (Flex), the default for
 ` + "`fly postgres create`" + `, and only after ` + "`fly postgres backup enable`" + `.
 
 Change the settings with ` + "`fly postgres backup config update`" + `.`
@@ -527,10 +530,11 @@ Change the settings with ` + "`fly postgres backup config update`" + `.`
 func newBackupConfigUpdate() *cobra.Command {
 	const (
 		short = "Update backup configuration"
-		long  = `Update the backup configuration of a Fly Postgres cluster. Only the
-settings you pass as flags change; they're applied on the primary. The
-Postgres app comes from --app or fly.toml. It works only on clusters managed by repmgr (Flex), the default for
-` + "`fly postgres create`" + `, and only after ` + "`fly postgres backup enable`" + `.
+		long  = `Update the backup configuration of a Fly Postgres cluster. Only the settings
+you pass as flags change; they're applied on the primary. The Postgres app
+comes from --app, FLY_APP or fly.toml. It works only on clusters managed by
+repmgr (Flex), the default for ` + "`fly postgres create`" + `, and only after
+` + "`fly postgres backup enable`" + `.
 
 See the current settings with ` + "`fly postgres backup config show`" + `.`
 

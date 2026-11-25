@@ -21,8 +21,8 @@ func newRestart() *cobra.Command {
 	const (
 		short = "Restart a Fly Postgres cluster one machine at a time"
 		long  = `Restart every machine in a Fly Postgres cluster, replicas first and the
-primary last. The Postgres app comes from --app or fly.toml. There's no
-confirmation prompt.
+primary last. The Postgres app comes from --app, FLY_APP or fly.toml.
+There's no confirmation prompt.
 
 On Stolon clusters with a replica in the primary's region, the primary
 role is moved to a replica before the old primary restarts. The command

@@ -31,12 +31,16 @@ running Postgres on Fly Machines with volumes, which you operate
 yourself. For Postgres that Fly.io operates for you, use
 ` + "`fly mpg create`" + ` instead.
 
-In a terminal, you're asked for anything you don't pass as a flag: the
-app name (--name or --generate-name), organization, region, and a preset
-configuration. Passing sizing flags such as --vm-size,
---initial-cluster-size or --volume-size skips the preset list. Clusters
-are managed by repmgr (Flex) unless you pass --stolon. Use --fork-from to
-start from a copy of another Fly Postgres app's volume.
+In a terminal, you're asked for anything you don't pass as a flag: the app
+name (--name or --generate-name), organization (--org or FLY_ORG), region
+(--region or FLY_REGION), and a preset configuration. Passing a sizing flag
+such as --vm-size, --initial-cluster-size or --volume-size skips the preset
+list; you're asked for the sizes you didn't pass.
+
+Clusters are managed by repmgr (Flex) unless you pass --stolon. Use
+--fork-from to start from a copy of another Fly Postgres app's volume. A
+fork has one machine, runs in that volume's region, and keeps that cluster's
+manager unless you pass --stolon.
 
 The command prints the postgres user's password once; save it. Then give
 an app a connection string with ` + "`fly postgres attach`" + `.`

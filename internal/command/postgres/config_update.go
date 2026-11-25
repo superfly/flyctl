@@ -29,7 +29,7 @@ import (
 func newConfigUpdate() (cmd *cobra.Command) {
 	const (
 		long = `Change Postgres settings on a Fly Postgres cluster. The Postgres app comes
-from --app or fly.toml; pass each setting to change as a flag.
+from --app, FLY_APP or fly.toml; pass each setting to change as a flag.
 
 The new values are checked against the current settings and shown as a
 table, and you're asked to confirm. If any change needs a restart, you're

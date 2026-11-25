@@ -36,14 +36,17 @@ type AttachParams struct {
 func newAttach() *cobra.Command {
 	const (
 		short = "Attach a Fly Postgres cluster to an app"
-		long  = `Attach a Fly Postgres cluster to an app. Pass the Postgres app's name as
-the argument; the consuming app comes from --app or fly.toml.
+		long  = `Attach a Fly Postgres cluster to an app. Pass the Postgres app's name as the
+argument; the consuming app comes from --app, FLY_APP or fly.toml.
 
 On the cluster, this creates a database and a user, both named after the
-consuming app with hyphens turned into underscores unless --database-name
-or --database-user say otherwise. The user is a superuser unless you pass
---superuser=false. The connection string is then set as a secret on the
-consuming app (DATABASE_URL unless --variable-name says otherwise).
+consuming app unless --database-name or --database-user say otherwise. Names
+are lowercased and hyphens become underscores, including in names you pass.
+The user is a superuser unless you pass --superuser=false. The connection
+string is then set as a secret on the consuming app (DATABASE_URL unless
+--variable-name says otherwise). The app isn't redeployed; run
+` + "`fly secrets deploy`" + ` or ` + "`fly deploy`" + ` to give its running Machines the
+secret.
 
 The command fails if the app already has that secret or the user already
 exists. If the database already exists, you're asked whether to use it

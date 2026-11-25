@@ -42,7 +42,7 @@ func newListDbs() *cobra.Command {
 	const (
 		short = "List databases in a Fly Postgres cluster"
 		long  = `List the databases in a Fly Postgres cluster and the users that can access
-each one. The Postgres app comes from --app or fly.toml.`
+each one. The Postgres app comes from --app, FLY_APP or fly.toml.`
 
 		usage = "list"
 	)

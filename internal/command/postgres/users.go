@@ -43,7 +43,7 @@ func newListUsers() *cobra.Command {
 		short = "List users in a Fly Postgres cluster"
 		long  = `List the database users in a Fly Postgres cluster, whether each is a
 superuser, and the databases each can access. The Postgres app comes from
---app or fly.toml.`
+--app, FLY_APP or fly.toml.`
 
 		usage = "list"
 	)

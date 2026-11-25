@@ -29,9 +29,11 @@ You're responsible for its operations, management and disaster recovery;
 Fly.io Support doesn't cover it. For Postgres that
 Fly.io operates for you, use ` + "`fly mpg`" + ` (Managed Postgres).
 
-Subcommands take the Postgres app with --app (or from fly.toml). Start with
-` + "`fly postgres create`" + `, then ` + "`fly postgres attach`" + ` to give an app a connection
-string. See https://docs.fly.io/postgres for more.`
+Most subcommands act on the Postgres app from --app, FLY_APP or fly.toml.
+` + "`fly postgres attach`" + ` and ` + "`fly postgres detach`" + ` take the Postgres app as an
+argument instead; there, --app names the app that uses the database. Start
+with ` + "`fly postgres create`" + `, then ` + "`fly postgres attach`" + ` to give an app a
+connection string. See https://docs.fly.io/unmanaged-postgres for more.`
 	)
 
 	cmd := command.New("postgres", short, long, nil)

@@ -14,9 +14,10 @@ import (
 func newDetach() *cobra.Command {
 	const (
 		short = "Detach Consul cluster from an app"
-		long  = "Remove the " + consulUrlDefaultVariableName + " secret (or the one named by `--variable-name`)\n" +
-			"from the app, then restart its Machines so they drop it. Only the secret\n" +
-			"is removed; this command does not delete the Consul cluster."
+		long  = `Remove the ` + consulUrlDefaultVariableName + ` secret (or the one named by
+` + "`--variable-name`" + `) from the app, then update the Machines that Fly Launch
+manages, restarting the running ones, so they drop it. Only the secret is
+removed; this command does not delete the Consul cluster.`
 		usage = "detach"
 	)
 	cmd := command.New(usage, short, long, runDetach,
