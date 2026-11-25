@@ -30,12 +30,13 @@ func New() (cmd *cobra.Command) {
 	const (
 		long = `Stream the app's logs, starting with recent lines. The command keeps
 streaming until you interrupt it (Ctrl-C); with --no-tail it prints the
-recent logs and exits. The app comes from --app or fly.toml.
+recent logs and exits. The app comes from --app, FLY_APP or fly.toml.
 
 --machine shows one Machine's logs, and --select lets you pick a Machine
 from a list in a terminal. --region shows logs only from Machines in that
-region; FLY_REGION, which is set inside Fly Machines, filters the same way
-unless --machine is used. --json prints each log entry as a JSON object.`
+region, as does FLY_REGION, which is set inside Fly Machines; both are
+ignored when --machine or --select chooses a Machine. --json prints each log
+entry as a JSON object.`
 		short = "View app logs"
 	)
 

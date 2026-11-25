@@ -19,13 +19,15 @@ func newScaleVm() *cobra.Command {
 as shared-cpu-1x or performance-2x. List the sizes with
 ` + "`fly platform vm-sizes`" + `. Set memory at the same time with
 ` + "`--vm-memory`" + ` in MB, for example
-` + "`fly scale vm shared-cpu-1x --vm-memory=2048`" + `.
+` + "`fly scale vm shared-cpu-1x --vm-memory=2048`" + `. Without ` + "`--vm-memory`" + `, each
+Machine's memory is reset to the size's default, even if it had more.
 
 Each Machine is updated in turn without a confirmation prompt; fly waits
 for each one to settle and, if it's running, to pass its health checks.
 Apps with more than one process group need ` + "`--process-group`" + `. If
-` + "`fly.toml`" + ` has a ` + "`[[vm]]`" + ` section with different settings, fly warns you,
-because the next ` + "`fly deploy`" + ` applies the ` + "`fly.toml`" + ` values.
+` + "`fly.toml`" + ` has a ` + "`[[vm]]`" + ` section, the next ` + "`fly deploy`" + ` applies its values.
+fly warns you if its size differs, or if you pass ` + "`--vm-memory`" + ` and its
+memory differs; it doesn't compare memory otherwise.
 
 For pricing, see https://docs.fly.io/about/pricing`
 	)

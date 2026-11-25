@@ -22,7 +22,7 @@ func newList() *cobra.Command {
 		long = `List the services configured on the app's active Machines. Each row shows
 the protocol, external and internal ports, handlers, whether HTTPS is
 forced, and the process groups, regions and number of Machines that have the
-service. The app comes from --app or fly.toml. --json isn't supported yet.`
+service. The app comes from --app, FLY_APP or fly.toml.`
 		short = "List services"
 	)
 

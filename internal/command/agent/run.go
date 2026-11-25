@@ -30,7 +30,7 @@ func newRun() (cmd *cobra.Command) {
 		long  = `Run the Fly agent in the current process instead of in the background,
 logging to stdout until you stop it. Use it to watch the agent's log while
 debugging WireGuard connections. Fails if another agent is already running;
-stop it first with ` + "`fly agent stop`" + `.
+stop it first with ` + "`fly agent stop`" + `. Requires you to be logged in.
 
 flyctl starts the background agent by running this command with a log file
 path as the argument; you don't normally pass one yourself.

@@ -11,7 +11,7 @@ const (
 to see each check's latest status and output.`
 	checksListLong = `List the health checks on each of the app's active Machines, with each
 check's status, Machine ID, last update time and latest output. The app
-comes from --app or fly.toml.
+comes from --app, FLY_APP or fly.toml.
 
 --check-name limits the table to checks with that name; it doesn't filter
 --json output, which maps each Machine ID to its checks.`
