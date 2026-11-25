@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -48,6 +49,12 @@ func updateImageForMachines(ctx context.Context, app *flaps.App) error {
 		if !autoConfirm {
 			confirmed, err := mach.ConfirmConfigChanges(ctx, machine, *machineConf, "")
 			if err != nil {
+				// This Machine is up to date, but others may not be.
+				var noChanges *mach.ErrNoConfigChangesFound
+				if errors.As(err, &noChanges) {
+					continue
+				}
+
 				return err
 			}
 			if !confirmed {
@@ -56,6 +63,12 @@ func updateImageForMachines(ctx context.Context, app *flaps.App) error {
 		}
 
 		eligible[machine] = *machineConf
+	}
+
+	if len(eligible) == 0 {
+		fmt.Fprintln(io.Out, "No changes to apply")
+
+		return nil
 	}
 
 	minvers, err := appsecrets.GetMinvers(app.Name)

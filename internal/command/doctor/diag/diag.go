@@ -133,6 +133,10 @@ add the --force flag to send us best-effort diagnostics.`)
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode < 200 || res.StatusCode > 299 {
+		return fmt.Errorf("put archive to doctor URL: unexpected status %s", res.Status)
+	}
+
 	fmt.Printf("\nYour Diagnostic Code (safe to share): %s\n", m[1])
 
 	return nil

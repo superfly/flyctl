@@ -93,7 +93,7 @@ func StatuspageIncidentsRequest(ctx context.Context) (*StatusPageApiResponse, er
 	defer response.Body.Close() // skipcq: GO-S2307
 
 	if response.StatusCode != http.StatusOK {
-		return nil, nil
+		return nil, fmt.Errorf("the incidents API returned an unexpected status: %s", response.Status)
 	}
 
 	var apiResponse StatusPageApiResponse
