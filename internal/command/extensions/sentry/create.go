@@ -15,7 +15,17 @@ func create() (cmd *cobra.Command) {
 
 	const (
 		short = "Provision a Sentry project for a Fly.io app"
-		long  = short + "\n"
+		long  = `Provision a Sentry project for an app. Run the command in an app
+directory or pass ` + "`--app`" + `; it fails if the app already has a Sentry
+project.
+
+The first time you use Sentry you must accept its terms of service;
+` + "`--yes`" + ` accepts them, and is required to do so without a terminal.
+
+The values Sentry provides are set as secrets on the app and its
+machines restart to pick them up; if the app hasn't been deployed yet,
+they take effect on its first deploy. If any of those secrets already
+exist, none are set, and the values are printed for you to set yourself.`
 	)
 
 	cmd = command.New("create", short, long, runSentryCreate, command.RequireSession, command.RequireAppName)

@@ -313,7 +313,7 @@ func TestDepotSDKReadinessRetry(t *testing.T) {
 			require.NoError(t, err)
 			defer func() { require.NoError(t, machine.Release()) }()
 			meta := &uiex.BuilderMeta{}
-			c, err := connectDepotSDK(ctx, machine, meta)
+			c, _, err := connectDepotSDK(ctx, machine, meta)
 			require.Equal(t, int32(2), service.calls.Load())
 			if tc.stall {
 				require.ErrorIs(t, err, context.DeadlineExceeded)

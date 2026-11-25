@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
@@ -44,16 +45,18 @@ func createRequest(t *testing.T, args ...string) (flaps.CreateManagedPostgresClu
 
 	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
 		ListOrganizationsFunc: func(context.Context, bool) ([]uiex.Organization, error) {
-			return []uiex.Organization{{Slug: "personal", RawSlug: "someone", Personal: true}}, nil
+			return []uiex.Organization{{Slug: "personal", RawSlug: "someone", Personal: true, InternalNumericID: 7}}, nil
 		},
 	})
 
+	checkOrg := authtest.Organization(t, 7)
 	var sent flaps.CreateManagedPostgresClusterRequest
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 		GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
 			return &flaps.RegionData{Regions: []fly.Region{{Code: "iad", MPGAvailable: true}}}, nil
 		},
-		CreateManagedPostgresClusterFunc: func(_ context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+		CreateManagedPostgresClusterFunc: func(ctx context.Context, req flaps.CreateManagedPostgresClusterRequest) (flaps.ManagedPostgresCluster, error) {
+			checkOrg(ctx)
 			sent = req
 
 			return flaps.ManagedPostgresCluster{}, errors.New("stop after the create request")
@@ -61,6 +64,28 @@ func createRequest(t *testing.T, args ...string) (flaps.CreateManagedPostgresClu
 	})
 
 	return sent, runCreate(ctx)
+}
+
+func TestRunCreatePGMajorVersion(t *testing.T) {
+	t.Run("no flag asks for the default", func(t *testing.T) {
+		req, _ := createRequest(t)
+		assert.Equal(t, "17", req.PGMajorVersion)
+	})
+
+	for _, version := range []string{"16", "17", "18"} {
+		t.Run("accepts "+version, func(t *testing.T) {
+			req, _ := createRequest(t, "--pg-major-version", version)
+			assert.Equal(t, version, req.PGMajorVersion)
+		})
+	}
+
+	for _, version := range []string{"15", "19", "0"} {
+		t.Run("rejects "+version, func(t *testing.T) {
+			req, err := createRequest(t, "--pg-major-version", version)
+			assert.EqualError(t, err, "invalid Postgres major version: "+version+". Supported versions are 16, 17 and 18")
+			assert.Empty(t, req, "no cluster should be requested")
+		})
+	}
 }
 
 // --plan names are documented capitalized and matched in any case, but the
@@ -73,6 +98,10 @@ func TestRunCreatePlanFlag(t *testing.T) {
 		{" PERFORMANCE ", "Performance"},
 		{"Basic", "basic"},
 		{"launch", "launch"},
+		{"dev-256", "dev-256"},
+		{"DEV-256", "dev-256"},
+		{"Developer", "dev-256"},
+		{"developer", "dev-256"},
 	} {
 		t.Run(tc.flag, func(t *testing.T) {
 			plan, _ := createdPlan(t, "--plan", tc.flag)
@@ -83,7 +112,7 @@ func TestRunCreatePlanFlag(t *testing.T) {
 	t.Run("unknown plan fails instead of creating a Basic cluster", func(t *testing.T) {
 		plan, err := createdPlan(t, "--plan", "hobby")
 		require.ErrorContains(t, err, `unknown plan "hobby"`)
-		assert.ErrorContains(t, err, "Basic, Starter, Launch, Scale, Performance")
+		assert.ErrorContains(t, err, "Dev-256, Basic, Starter, Launch, Scale, Performance")
 		assert.Empty(t, plan, "no cluster should be requested")
 	})
 
@@ -114,20 +143,6 @@ func TestRunCreateVolumeSize(t *testing.T) {
 			assert.Equal(t, tc.want, req.DiskSizeGB)
 		})
 	}
-}
-
-// dev-256 is hidden until it launches: --plan takes it, in any case, and the
-// API decides whether the org can have it, but the plan lists don't show it.
-func TestRunCreateHiddenPlan(t *testing.T) {
-	for _, flag := range []string{"dev-256", "DEV-256"} {
-		plan, _ := createdPlan(t, "--plan", flag)
-		assert.Equal(t, "dev-256", plan, flag)
-	}
-
-	_, err := createdPlan(t, "--plan", "hobby")
-	require.Error(t, err)
-	assert.NotContains(t, err.Error(), "Dev 256", "the unknown plan error")
-	assert.NotContains(t, newFork().Flags().Lookup("plan").Usage, "Dev 256", "fork's --plan help")
 }
 
 func TestWarnIfV2FlagUsed(t *testing.T) {

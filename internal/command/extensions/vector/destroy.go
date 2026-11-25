@@ -16,9 +16,15 @@ import (
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy an Upstash Vector index`
+		short = "Permanently destroy an Upstash Vector index"
+		long  = `Permanently destroy an Upstash Vector index. This can't be undone. Name
+the index as an argument, or run the command in an app directory (or
+with ` + "`--app`" + `) to destroy the app's index.
 
-		short = long
+You're asked to confirm first. Pass ` + "`--yes`" + ` to skip the prompt; without
+a terminal, ` + "`--yes`" + ` is required. The index's secrets are not removed
+from the app; unset them with ` + "`fly secrets unset`" + `.`
+
 		usage = "destroy [name]"
 	)
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -16,14 +17,18 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mpgutil"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/internal/uiex"
+	uiexmpg "github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
+	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -173,6 +178,20 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	return nil
 }
 
+// managedPostgresClusterRequest builds the request for the cluster that
+// fly launch creates. The launch plan carries no Postgres version, so the
+// cluster gets the same default as fly mpg create.
+func managedPostgresClusterRequest(orgSlug string, pgPlan *plan.ManagedPostgresPlan) flaps.CreateManagedPostgresClusterRequest {
+	return flaps.CreateManagedPostgresClusterRequest{
+		OrgSlug:        orgSlug,
+		Name:           pgPlan.DbName,
+		Region:         pgPlan.Region,
+		Plan:           pgPlan.Plan,
+		DiskSizeGB:     pgPlan.DiskSize,
+		PGMajorVersion: strconv.Itoa(mpgutil.DefaultPGMajorVersion),
+	}
+}
+
 func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	var (
 		io          = iostreams.FromContext(ctx)
@@ -202,15 +221,10 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		slug = org.RawSlug
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, org.InternalNumericID)
+
 	// Create the cluster with retry logic for network errors.
-	input := flaps.CreateManagedPostgresClusterRequest{
-		OrgSlug:        slug,
-		Name:           pgPlan.DbName,
-		Region:         pgPlan.Region,
-		Plan:           pgPlan.Plan,
-		DiskSizeGB:     pgPlan.DiskSize,
-		PGMajorVersion: mpgutil.DefaultPGMajorVersion,
-	}
+	input := managedPostgresClusterRequest(slug, pgPlan)
 
 	fmt.Fprintf(io.Out, "Provisioning Managed Postgres cluster...\n")
 
@@ -321,7 +335,7 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	// Fetch the default user's credentials with retry logic, then build
-	// DATABASE_URL from the ready cluster's pooler endpoint.
+	// DATABASE_URL from the ready cluster's endpoints.
 	var creds flaps.ManagedPostgresUserCredentials
 	err = retry.Do(
 		func() error {
@@ -361,21 +375,42 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 
 // attachToManagedPostgres attaches an existing Managed Postgres cluster to the app
 func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID string) error {
-	var (
-		io        = iostreams.FromContext(ctx)
-		mpgClient = mpgv1.ClientFromContext(ctx)
-	)
+	io := iostreams.FromContext(ctx)
 
 	// Get cluster details to verify it exists and get credentials
 	fmt.Fprintf(io.Out, "Attaching to existing Managed Postgres cluster %s...\n", clusterID)
 
-	var cluster mpgv1.GetManagedClusterResponse
+	// Like `fly mpg attach`, read a v2 cluster's credentials from the v2 API:
+	// the v1 API returns none for it.
+	var clusterOrgSlug, baseUri string
 	err := retry.Do(
 		func() error {
-			var retryErr error
-			cluster, retryErr = mpgClient.GetManagedClusterById(ctx, clusterID)
+			found, _, err := mpg.ClusterFromArgOrSelect(ctx, clusterID, "")
+			if err != nil {
+				return err
+			}
 
-			return retryErr
+			if found.Version == uiexmpg.VersionV1 {
+				cluster, err := mpgv1.ClientFromContext(ctx).GetManagedClusterById(ctx, clusterID)
+				if err != nil {
+					return err
+				}
+				clusterOrgSlug, baseUri = cluster.Data.Organization.Slug, cluster.Credentials.ConnectionUri
+
+				return nil
+			}
+
+			cluster, err := mpgv2.ClientFromContext(ctx).GetClusterById(ctx, clusterID)
+			if err != nil {
+				return err
+			}
+			uri := cluster.Credentials.AppURI()
+			if uri == "" {
+				return errors.New("connection URI is empty; cannot attach without valid credentials")
+			}
+			clusterOrgSlug, baseUri = cluster.Data.Organization.Slug, uri
+
+			return nil
 		},
 		retry.Context(ctx),
 		retry.Attempts(3),
@@ -395,12 +430,11 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 		return fmt.Errorf("failed retrieving app %s: %w", state.Plan.AppName, err)
 	}
 
-	appOrg, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
+	appOrg, err := uiexutil.AppOrganization(ctx, app)
 	if err != nil {
-		return fmt.Errorf("failed retrieving organization for app %s: %w", state.Plan.AppName, err)
+		return err
 	}
 
-	clusterOrgSlug := cluster.Data.Organization.Slug
 	appOrgSlug := appOrg.RawSlug
 
 	if appOrgSlug != clusterOrgSlug {
@@ -408,12 +442,14 @@ func (state *launchState) attachToManagedPostgres(ctx context.Context, clusterID
 			state.Plan.AppName, appOrgSlug, clusterID, clusterOrgSlug)
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
+
 	// Build connection URI with the database name from the plan (if provided)
-	connectionUri := cluster.Credentials.ConnectionUri
+	connectionUri := baseUri
 	dbName := state.Plan.Postgres.ManagedPostgres.DbName
 	if dbName != "" {
 		// Parse the base connection URI and replace the database name
-		parsedUri, err := url.Parse(cluster.Credentials.ConnectionUri)
+		parsedUri, err := url.Parse(baseUri)
 		if err != nil {
 			return fmt.Errorf("failed to parse connection URI: %w", err)
 		}

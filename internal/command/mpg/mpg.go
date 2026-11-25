@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
@@ -23,9 +24,16 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = `Manage Managed Postgres clusters.`
+		short = `Manage Managed Postgres clusters`
 
-		long = short + "\n"
+		long = `Manage Managed Postgres (MPG) clusters, the Postgres service that Fly.io
+operates for you. You don't run its machines yourself; you work with
+clusters, databases, users and backups through these commands.
+
+Start with ` + "`fly mpg create`" + `, then give an app its connection string
+with ` + "`fly mpg attach`" + ` or open a psql session with ` + "`fly mpg connect`" + `.
+For the older, unmanaged Fly Postgres that runs as an app in your
+organization, use ` + "`fly postgres`" + `.`
 	)
 
 	cmd := command.New("mpg", short, long, nil)
@@ -114,6 +122,7 @@ func ClusterFromArgOrSelect(ctx context.Context, clusterID, orgSlug string) (*mp
 		}
 
 		orgSlug = org.RawSlug
+		ctx = requestauth.WithOrganizations(ctx, org.InternalNumericID)
 	}
 
 	clusters, err := listSelectableClusters(ctx, orgSlug)

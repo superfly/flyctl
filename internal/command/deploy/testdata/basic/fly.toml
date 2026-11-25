@@ -1,2 +1,6 @@
 app = "test-basic"
 primary_region = "ord"
+
+[env]
+DATABASE_URL = "file:/data/sqlite.db"
+SECRET_KEY = "test-secret-canary"

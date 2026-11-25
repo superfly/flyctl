@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	"github.com/superfly/flyctl/internal/uiex"
 	mpgv1 "github.com/superfly/flyctl/internal/uiex/mpg/v1"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -19,6 +20,7 @@ import (
 )
 
 func TestRunListUsesMergedMachinesAndLegacyResults(t *testing.T) {
+	assertOrg := authtest.Organization(t, 7)
 	io, _, stdout, _ := iostreams.Test()
 	ctx := iostreams.NewContext(context.Background(), io)
 	ctx = config.NewContext(ctx, &config.Config{JSONOutput: true})
@@ -31,11 +33,12 @@ func TestRunListUsesMergedMachinesAndLegacyResults(t *testing.T) {
 		GetOrganizationFunc: func(_ context.Context, slug string) (*uiex.Organization, error) {
 			require.Equal(t, "personal", slug)
 
-			return &uiex.Organization{Slug: slug, RawSlug: "raw-personal"}, nil
+			return &uiex.Organization{Slug: slug, RawSlug: "raw-personal", InternalNumericID: 7}, nil
 		},
 	})
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
-		ListManagedPostgresClustersFunc: func(_ context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+		ListManagedPostgresClustersFunc: func(ctx context.Context, req flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+			assertOrg(ctx)
 			require.Equal(t, "raw-personal", req.OrgSlug)
 			require.False(t, req.IncludeDeleted)
 
@@ -45,7 +48,8 @@ func TestRunListUsesMergedMachinesAndLegacyResults(t *testing.T) {
 		},
 	})
 	ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
-		ListManagedClustersFunc: func(_ context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
+		ListManagedClustersFunc: func(ctx context.Context, orgSlug string, deleted bool) (mpgv1.ListManagedClustersResponse, error) {
+			assertOrg(ctx)
 			require.Equal(t, "raw-personal", orgSlug)
 			require.False(t, deleted)
 

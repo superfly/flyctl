@@ -35,7 +35,22 @@ func WaitForState(ctx context.Context, appName string, machine *fly.Machine, des
 	return desiredState, nil
 }
 
+// WaitForLaunch waits for the first start of a newly created Machine.
+func WaitForLaunch(ctx context.Context, appName string, machine *fly.Machine, timeout time.Duration) error {
+	for _, event := range machine.Events {
+		if event != nil && event.Type == "launch" && event.Status == "created" && event.ID != "" {
+			return waitForStartOrStop(ctx, appName, machine, "start", timeout, event.ID)
+		}
+	}
+
+	return WaitForStartOrStop(ctx, appName, machine, "start", timeout)
+}
+
 func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration) error {
+	return waitForStartOrStop(ctx, appName, machine, action, timeout, "")
+}
+
+func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machine, action string, timeout time.Duration, fromEventID string) error {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	waitCtx, cancel := context.WithTimeoutCause(ctx, timeout, fmt.Errorf("waiting for machine start or stop: %w", context.DeadlineExceeded))
@@ -60,8 +75,13 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		Factor: 2,
 		Jitter: false,
 	}
+	waitOpts := []flaps.WaitOption{flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(time.Minute)}
+	if fromEventID != "" {
+		waitOpts = append(waitOpts, flaps.WithWaitFromEventID(fromEventID))
+	}
+	waitingForFirstStart := false
 	for {
-		err := flapsClient.Wait(waitCtx, appName, machine.ID, flaps.WithWaitStates(waitOnAction), flaps.WithWaitTimeout(60*time.Second))
+		err := flapsClient.Wait(waitCtx, appName, machine.ID, waitOpts...)
 		if err == nil {
 			return nil
 		}
@@ -77,10 +97,22 @@ func WaitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			}
 		default:
 			var flapsErr *flaps.FlapsError
-			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
-				return fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
+			isFlapsError := errors.As(err, &flapsErr)
+			if waitingForFirstStart && isFlapsError && (flapsErr.ResponseStatusCode == http.StatusConflict || flapsErr.ResponseStatusCode == http.StatusNotFound) {
+				return err
 			}
-			if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusBadRequest {
+			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
+				if action != "start" || machine.Version == "" || !isFlapsError || flapsErr.ResponseStatusCode != http.StatusRequestTimeout ||
+					flapsErr.Error() != "deadline_exceeded: machine failed to reach desired state, started, currently created" {
+					return fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
+				}
+				// Follow the original launch if another version replaces this one.
+				if !waitingForFirstStart {
+					waitOpts = append(waitOpts, flaps.WithWaitVersion(machine.Version))
+					waitingForFirstStart = true
+				}
+			}
+			if isFlapsError && flapsErr.ResponseStatusCode == http.StatusBadRequest {
 				return fmt.Errorf("failed waiting for machine: %w", err)
 			}
 			time.Sleep(b.Duration())

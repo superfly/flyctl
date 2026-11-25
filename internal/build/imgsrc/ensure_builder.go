@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/appsecrets"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/haikunator"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -22,6 +23,7 @@ import (
 )
 
 type Provisioner struct {
+	orgID                 uint64
 	orgSlug               string
 	orgTrial              bool
 	orgPaidPlan           bool
@@ -33,6 +35,7 @@ type Provisioner struct {
 
 func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 	return &Provisioner{
+		orgID:                 org.InternalNumericID,
 		orgSlug:               org.Slug,
 		orgTrial:              org.BillingStatus == uiex.BillingStatusTrialActive,
 		orgPaidPlan:           org.PaidPlan,
@@ -43,6 +46,7 @@ func NewProvisionerUiexOrg(org *uiex.Organization) *Provisioner {
 
 func NewBuildkitProvisioner(org *uiex.Organization, addr, image string) *Provisioner {
 	return &Provisioner{
+		orgID:                 org.InternalNumericID,
 		orgSlug:               org.Slug,
 		orgPaidPlan:           org.PaidPlan,
 		orgRemoteBuilderImage: org.RemoteBuilderImage,
@@ -75,7 +79,7 @@ func (p *Provisioner) image() string {
 func (p *Provisioner) GetRemoteBuilderApp(ctx context.Context) (*flaps.App, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	apps, err := flapsClient.ListApps(ctx, flaps.ListAppsRequest{
+	apps, err := flapsClient.ListApps(requestauth.WithOrganizations(ctx, p.orgID), flaps.ListAppsRequest{
 		OrgSlug: p.orgSlug,
 		AppRole: appRoleRemoteBuilder,
 	})
@@ -91,6 +95,7 @@ func (p *Provisioner) GetRemoteBuilderApp(ctx context.Context) (*flaps.App, erro
 }
 
 func (p *Provisioner) EnsureBuilder(ctx context.Context, region string, recreateBuilder bool) (*fly.Machine, *flaps.App, error) {
+	ctx = requestauth.WithOrganizations(ctx, p.orgID)
 	ctx, span := tracing.GetTracer().Start(ctx, "ensure_builder")
 	defer span.End()
 
@@ -361,6 +366,7 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 }
 
 func (p *Provisioner) createBuilder(ctx context.Context, region, builderName string) (app *flaps.App, mach *fly.Machine, retErr error) {
+	ctx = requestauth.WithOrganizations(ctx, p.orgID)
 	buildkit := p.UseBuildkit()
 
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")

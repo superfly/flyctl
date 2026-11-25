@@ -2,7 +2,6 @@ package mpg
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -10,18 +9,22 @@ import (
 	cmdv1 "github.com/superfly/flyctl/internal/command/mpg/v1"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/uiex/mpg"
-	"github.com/superfly/flyctl/internal/uiexutil"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newDetach() *cobra.Command {
 	const (
-		short = "Detach a managed Postgres cluster from an app"
-		long  = short + ". " +
-			`This command will remove the attachment record linking the app to the cluster.
-Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to remove secrets.`
+		short = "Detach a Managed Postgres cluster from an app"
+		long  = `Detach a Managed Postgres cluster from an app by removing the attachment
+record that links them. The cluster, its data and its users are not
+changed.
+
+This does not remove the connection string secret from the app. Remove it
+with ` + "`fly secrets unset DATABASE_URL`" + ` (or the variable name you used).
+
+With no cluster ID, you pick one from the app's organization in a
+terminal; without a terminal, the cluster ID is required.`
 		usage = "detach <CLUSTER ID>"
 	)
 
@@ -41,42 +44,13 @@ Note: This does NOT remove any secrets from the app. Use 'fly secrets unset' to 
 }
 
 func runDetach(ctx context.Context) error {
-	var (
-		clusterId = flag.FirstArg(ctx)
-		appName   = appconfig.NameFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
-	)
-
-	// Get app details to determine which org it belongs to
-	app, err := flapsutil.ClientFromContext(ctx).GetApp(ctx, appName)
+	appName := appconfig.NameFromContext(ctx)
+	cluster, orgID, err := attachmentTarget(ctx, appName, flag.FirstArg(ctx))
 	if err != nil {
-		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+		return err
 	}
 
-	appOrg, err := uiexutil.ClientFromContext(ctx).GetOrganization(ctx, app.Organization.Slug)
-	if err != nil {
-		return fmt.Errorf("failed retrieving organization for app %s: %w", appName, err)
-	}
-
-	appOrgSlug := appOrg.RawSlug
-	if appOrgSlug != "" && clusterId == "" {
-		fmt.Fprintf(io.Out, "Listing clusters in organization %s\n", appOrgSlug)
-	}
-
-	// Get cluster details
-	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterId, appOrgSlug)
-	if err != nil {
-		return fmt.Errorf("failed retrieving cluster %s: %w", clusterId, err)
-	}
-
-	clusterOrgSlug := cluster.Organization.Slug
-
-	// Verify that the app and cluster are in the same organization
-	if !organizationSlugMatches(appOrg, clusterOrgSlug) {
-		return fmt.Errorf("app %s is in organization %s, but cluster %s is in organization %s. They must be in the same organization",
-			appName, appOrgSlug, cluster.Id, clusterOrgSlug)
-	}
-
+	ctx = requestauth.WithOrganizations(ctx, orgID)
 	if cluster.Version == mpg.VersionV1 {
 		return cmdv1.RunDetach(ctx, cluster.Id, appName)
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -69,16 +70,18 @@ func sampleRegions() []fly.Region {
 	}
 }
 
-// poolerEndpoints builds the inline-struct Endpoints value used by the
-// credentials/URI tests. Tests that exercise the credentials branch set the
-// cluster's Endpoints.Primary.Pooler so the expected URI is
-// "postgres://fly-user:<password>@pooler.example.test:6432/fly-db".
-func poolerEndpoints() flaps.ManagedPostgresEndpoints {
+// clusterEndpoints builds the inline-struct Endpoints value used by the
+// credentials/URI tests. The expected URI is
+// "postgres://fly-user:<password>@pooler.example.test:6432/fly-db", or
+// "postgres://fly-user:<password>@direct.example.test:5432/fly-db" on the
+// Developer plan (dev-256).
+func clusterEndpoints() flaps.ManagedPostgresEndpoints {
 	return flaps.ManagedPostgresEndpoints{
 		Primary: struct {
 			Direct flaps.ManagedPostgresEndpoint `json:"direct"`
 			Pooler flaps.ManagedPostgresEndpoint `json:"pooler"`
 		}{
+			Direct: flaps.ManagedPostgresEndpoint{Host: "direct.example.test", Port: 5432},
 			Pooler: flaps.ManagedPostgresEndpoint{Host: "pooler.example.test", Port: 6432},
 		},
 	}
@@ -161,7 +164,7 @@ func TestRunCreate_RegionDiscovery(t *testing.T) {
 					return flaps.ManagedPostgresCluster{ID: "mpg-123", Region: req.Region, DiskSizeGB: req.DiskSizeGB, PostGISEnabled: req.PostGISEnabled}, nil
 				},
 				GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
-					return flaps.ManagedPostgresCluster{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: poolerEndpoints()}, nil
+					return flaps.ManagedPostgresCluster{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: clusterEndpoints()}, nil
 				},
 				GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 					return flaps.ManagedPostgresUserCredentials{Username: "fly-user", Password: "secret"}, nil
@@ -214,14 +217,14 @@ func TestRunCreate_PollLoop(t *testing.T) {
 		{
 			name: "ready on first poll proceeds to credentials",
 			polls: []flaps.ManagedPostgresCluster{
-				{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: poolerEndpoints()},
+				{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: clusterEndpoints()},
 			},
 		},
 		{
 			name: "transient provisioning status keeps polling then succeeds",
 			polls: []flaps.ManagedPostgresCluster{
 				{ID: "mpg-123", Status: "creating"},
-				{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: poolerEndpoints()},
+				{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: clusterEndpoints()},
 			},
 		},
 		{
@@ -236,7 +239,7 @@ func TestRunCreate_PollLoop(t *testing.T) {
 			polls: []flaps.ManagedPostgresCluster{
 				{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: flaps.ManagedPostgresEndpoints{}},
 			},
-			wantErr: "failed to build connection URI for cluster mpg-123: cluster ready but pooler endpoint not yet available",
+			wantErr: "failed to build connection URI for cluster mpg-123: cluster ready but endpoint not yet available",
 		},
 		{
 			name: "failed status is terminal failure",
@@ -382,7 +385,7 @@ func TestRunCreate_RequestMapping(t *testing.T) {
 					return flaps.ManagedPostgresCluster{ID: "mpg-123", Region: req.Region, DiskSizeGB: req.DiskSizeGB, PostGISEnabled: req.PostGISEnabled}, nil
 				},
 				GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
-					return flaps.ManagedPostgresCluster{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: poolerEndpoints()}, nil
+					return flaps.ManagedPostgresCluster{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: clusterEndpoints()}, nil
 				},
 				GetManagedPostgresUserCredentialsFunc: func(context.Context, string, string) (flaps.ManagedPostgresUserCredentials, error) {
 					return flaps.ManagedPostgresUserCredentials{Username: "fly-user", Password: "secret"}, nil
@@ -398,10 +401,12 @@ func TestRunCreate_RequestMapping(t *testing.T) {
 
 // TestRunCreate_Credentials covers the post-ready branch: fetching the
 // fly-user credentials, composing the connection URI from the pooler
-// endpoint, and erroring when the credentials fetch fails (no retry).
+// endpoint (the direct one on the Developer plan), and erroring when the
+// credentials fetch fails (no retry).
 func TestRunCreate_Credentials(t *testing.T) {
 	tests := []struct {
 		name           string
+		plan           string
 		password       string
 		credsUsername  string
 		credsErr       error
@@ -412,9 +417,20 @@ func TestRunCreate_Credentials(t *testing.T) {
 	}{
 		{
 			name:           "happy path prints pooler-based URI",
+			plan:           "basic",
 			password:       "secret",
 			credsUsername:  "fly-user",
 			wantInOutput:   []string{"postgres://fly-user:secret@pooler.example.test:6432/fly-db", "Connection string: "},
+			wantNotInOut:   []string{"direct.example.test"},
+			wantCredsCalls: 1,
+		},
+		{
+			name:           "Developer plan prints the direct URI",
+			plan:           "dev-256",
+			password:       "secret",
+			credsUsername:  "fly-user",
+			wantInOutput:   []string{"postgres://fly-user:secret@direct.example.test:5432/fly-db", "Connection string: "},
+			wantNotInOut:   []string{"pooler.example.test"},
 			wantCredsCalls: 1,
 		},
 		{
@@ -466,6 +482,9 @@ func TestRunCreate_Credentials(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, stdout := createTestContext(t, "iad")
+			params := sampleParams()
+			params.OrgID = 7
+			checkOrg := authtest.Organization(t, params.OrgID)
 			credsCalls := 0
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
@@ -475,9 +494,10 @@ func TestRunCreate_Credentials(t *testing.T) {
 					return flaps.ManagedPostgresCluster{ID: "mpg-123", Region: "iad", DiskSizeGB: 10, PostGISEnabled: true}, nil
 				},
 				GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
-					return flaps.ManagedPostgresCluster{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Endpoints: poolerEndpoints()}, nil
+					return flaps.ManagedPostgresCluster{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Plan: test.plan, Endpoints: clusterEndpoints()}, nil
 				},
-				GetManagedPostgresUserCredentialsFunc: func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+				GetManagedPostgresUserCredentialsFunc: func(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+					checkOrg(ctx)
 					credsCalls++
 					require.Equal(t, "mpg-123", id)
 					require.Equal(t, "fly-user", username)
@@ -490,7 +510,7 @@ func TestRunCreate_Credentials(t *testing.T) {
 			})
 			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{})
 
-			err := RunCreate(ctx, "my-org", sampleParams(), samplePlan())
+			err := RunCreate(ctx, "my-org", params, samplePlan())
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				require.Equal(t, test.wantCredsCalls, credsCalls)
@@ -505,7 +525,7 @@ func TestRunCreate_Credentials(t *testing.T) {
 				require.True(t, strings.Contains(out, want), "stdout must contain %q\nstdout: %s", want, out)
 			}
 			for _, miss := range test.wantNotInOut {
-				require.False(t, strings.Contains(out, miss), "stdout must not contain unescaped %q\nstdout: %s", miss, out)
+				require.False(t, strings.Contains(out, miss), "stdout must not contain %q\nstdout: %s", miss, out)
 			}
 		})
 	}
@@ -555,7 +575,7 @@ func TestBuildConnectionURI(t *testing.T) {
 			user:     "fly-user",
 			pass:     "secret",
 			db:       "fly-db",
-			wantErr:  "cluster ready but pooler endpoint not yet available",
+			wantErr:  "cluster ready but endpoint not yet available",
 		},
 		{
 			name:     "missing host with non-zero port returns error",
@@ -563,7 +583,7 @@ func TestBuildConnectionURI(t *testing.T) {
 			user:     "u",
 			pass:     "p",
 			db:       "d",
-			wantErr:  "cluster ready but pooler endpoint not yet available",
+			wantErr:  "cluster ready but endpoint not yet available",
 		},
 		{
 			name:     "host with zero port returns error",
@@ -571,7 +591,7 @@ func TestBuildConnectionURI(t *testing.T) {
 			user:     "u",
 			pass:     "p",
 			db:       "d",
-			wantErr:  "cluster ready but pooler endpoint not yet available",
+			wantErr:  "cluster ready but endpoint not yet available",
 		},
 	}
 

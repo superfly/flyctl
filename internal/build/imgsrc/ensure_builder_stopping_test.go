@@ -16,6 +16,8 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
+	"github.com/superfly/flyctl/internal/uiex"
 )
 
 type builderTransport func(*http.Request) (*http.Response, error)
@@ -77,6 +79,7 @@ func TestEnsureTransitioningBuilder(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
+				checkOrg := authtest.Organization(t, 7)
 				next := 0
 				ctx := testingContext(t)
 				fc, err := flaps.NewWithOptions(ctx, flaps.NewClientOpts{Transport: builderTransport(func(r *http.Request) (*http.Response, error) {
@@ -85,7 +88,10 @@ func TestEnsureTransitioningBuilder(t *testing.T) {
 					switch {
 					case !tt.direct && r.Method == "GET" && path == "/v1/apps":
 						s = response("GET", path, `{"apps":[{"name":"builder"}]}`)
+					case !tt.direct && r.Method == "GET" && path == "/v1/apps/builder/volumes":
+						s = response("GET", path, `[{"id":"volume"}]`)
 					case !tt.direct && r.Method == "GET" && path == "/v1/apps/builder/machines":
+						checkOrg(r.Context())
 						state := tt.initialState
 						if state == "" {
 							state = "stopping"
@@ -116,7 +122,7 @@ func TestEnsureTransitioningBuilder(t *testing.T) {
 				if tt.direct {
 					err = startOrRestartBuilderMachine(ctx, "builder", &fly.Machine{ID: "proof", State: "stopping"})
 				} else {
-					_, _, err = (&Provisioner{orgSlug: "org"}).EnsureBuilder(ctx, "iad", false)
+					_, _, err = NewProvisionerUiexOrg(&uiex.Organization{Slug: "org", InternalNumericID: 7}).EnsureBuilder(ctx, "iad", false)
 				}
 				if tt.replace {
 					if !errors.Is(err, ShouldReplaceBuilderMachine) {

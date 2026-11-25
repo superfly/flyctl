@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/config"
@@ -24,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/inmem"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -52,16 +54,16 @@ func TestCommand_Execute(t *testing.T) {
 	}
 	chdir(t, dir)
 
-	var buf bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	cmd := New()
-	cmd.SetOut(&buf)
-	cmd.SetErr(&buf)
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
 	cmd.SetArgs([]string{"--image", "test-registry.fly.io/my-image:deployment-00000000000000000000000000"})
 
 	ctx := context.Background()
-	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &buf, ErrOut: &buf})
+	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &stdout, ErrOut: &stderr})
 	ctx = task.NewWithContext(ctx)
-	ctx = logger.NewContext(ctx, logger.New(&buf, logger.Info, true))
+	ctx = logger.NewContext(ctx, logger.New(&stderr, logger.Info, true))
 
 	// Set up config with LastLogin timestamp to satisfy session timeout check
 	cfg := &config.Config{
@@ -95,6 +97,13 @@ func TestCommand_Execute(t *testing.T) {
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		t.Fatal(err)
 	}
+	const warning = " may be a potentially sensitive environment variable"
+	assert.Contains(t, stderr.String(), "SECRET_KEY"+warning)
+	output := stdout.String() + stderr.String()
+	assert.Equal(t, 1, strings.Count(output, warning))
+	assert.NotContains(t, output, "file:/data/sqlite.db")
+	assert.NotContains(t, output, "test-secret-canary")
+
 	spans := map[string][]sdktrace.ReadOnlySpan{}
 	for _, span := range recorder.Ended() {
 		spans[span.Name()] = append(spans[span.Name()], span)
@@ -138,9 +147,13 @@ func TestDeployWithConfig_FailedBuildWithoutWireguardRunsOnce(t *testing.T) {
 
 	builds := 0
 	ctx = flyutil.NewContextWithClient(ctx, server.Client())
-	ctx = flapsutil.NewContextWithClient(ctx, server.FlapsClient("test-basic"))
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{GetAppFunc: func(context.Context, string) (*flaps.App, error) {
+		return &flaps.App{Name: "test-basic", Organization: flaps.AppOrganizationInfo{Slug: "my-org", InternalNumericID: 7}}, nil
+	}})
+	checkOrg := authtest.Organization(t, 7)
 	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
-		CreateBuildFunc: func(context.Context, uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+		CreateBuildFunc: func(ctx context.Context, _ uiex.CreateBuildRequest) (*uiex.BuildResponse, error) {
+			checkOrg(ctx)
 			builds++
 			return &uiex.BuildResponse{}, nil
 		},

@@ -14,7 +14,7 @@ import (
 
 // Keep SDK client/TLS/Release ownership and the one-second readiness retry.
 // Unlike Connect, retain the last completed error when cancellation wins.
-func connectDepotSDK(ctx context.Context, machine *depotmachine.Machine, meta *uiex.BuilderMeta) (c *client.Client, err error) {
+func connectDepotSDK(ctx context.Context, machine *depotmachine.Machine, meta *uiex.BuilderMeta) (c *client.Client, hostname string, err error) {
 	var last error
 	defer func() {
 		meta.DepotConnectionStage = depotConnectionStage(last)
@@ -26,17 +26,21 @@ func connectDepotSDK(ctx context.Context, machine *depotmachine.Machine, meta *u
 	for {
 		if ctx.Err() != nil {
 			if last == nil {
-				return nil, ctx.Err()
+				return nil, "", ctx.Err()
 			}
 			if ctx.Err() == context.DeadlineExceeded {
-				return nil, fmt.Errorf("timed out connecting to machine: %w: %w", ctx.Err(), last)
+				return nil, "", fmt.Errorf("timed out connecting to machine: %w: %w", ctx.Err(), last)
 			}
 
-			return nil, fmt.Errorf("%w: %w", ctx.Err(), last)
+			return nil, "", fmt.Errorf("%w: %w", ctx.Err(), last)
 		}
-		c, err = machine.CheckReady(ctx)
+		// Keep the hostname from the readiness probe to avoid another ListWorkers after Solve.
+		c, err = machine.Client(ctx)
 		if err == nil {
-			return c, nil
+			hostname, err = workerHostname(ctx, c)
+		}
+		if err == nil {
+			return c, hostname, nil
 		}
 		// A terminal context-only error must not erase an earlier observation.
 		if last == nil || !contextEnded(ctx) || depotConnectionStage(err) != "connecting" {

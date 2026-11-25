@@ -12,6 +12,7 @@ import (
 )
 
 type mockFlapsClient struct {
+	checkRequest     func(context.Context)
 	LaunchFunc       func(context.Context, string, fly.LaunchMachineInput) (*fly.Machine, error)
 	breakLaunch      bool
 	breakWait        bool
@@ -322,8 +323,8 @@ func (m *mockFlapsClient) GetManagedPostgresCluster(ctx context.Context, id stri
 	return flaps.ManagedPostgresCluster{}, fmt.Errorf("failed to get managed postgres cluster")
 }
 
-func (m *mockFlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (flaps.ManagedPostgresMaintenanceWindow, error) {
-	return flaps.ManagedPostgresMaintenanceWindow{}, fmt.Errorf("not implemented")
+func (m *mockFlapsClient) GetManagedPostgresMaintenanceWindow(ctx context.Context, id string) (*flaps.ManagedPostgresMaintenanceWindow, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) GetManagedPostgresUserCredentials(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
@@ -374,6 +375,9 @@ func (m *mockFlapsClient) Kill(ctx context.Context, appName, machineID string) (
 }
 
 func (m *mockFlapsClient) Launch(ctx context.Context, appName string, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+	if m.checkRequest != nil {
+		m.checkRequest(ctx)
+	}
 	if m.LaunchFunc != nil {
 		return m.LaunchFunc(ctx, appName, builder)
 	}
@@ -628,6 +632,9 @@ func (m *mockFlapsClient) Uncordon(ctx context.Context, appName, machineID strin
 }
 
 func (m *mockFlapsClient) Update(ctx context.Context, appName string, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+	if m.checkRequest != nil {
+		m.checkRequest(ctx)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -650,8 +657,8 @@ func (m *mockFlapsClient) UpdateAppSecrets(ctx context.Context, appName string, 
 	return nil, fmt.Errorf("failed to update app secret %v", values)
 }
 
-func (m *mockFlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (flaps.ManagedPostgresMaintenanceWindow, error) {
-	return flaps.ManagedPostgresMaintenanceWindow{}, fmt.Errorf("not implemented")
+func (m *mockFlapsClient) UpdateManagedPostgresMaintenanceWindow(ctx context.Context, id string, req flaps.UpdateManagedPostgresMaintenanceWindowRequest) (*flaps.ManagedPostgresMaintenanceWindow, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (m *mockFlapsClient) UpdateManagedPostgresUserRole(ctx context.Context, id, username string, req flaps.UpdateManagedPostgresUserRoleRequest) error {
