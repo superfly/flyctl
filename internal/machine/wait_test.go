@@ -139,3 +139,123 @@ func TestWaitForFirstStartVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestWaitForLaunchAutoDestroyAlreadyDestroyed(t *testing.T) {
+	t.Run("wait returns 404 and get returns destroyed", func(t *testing.T) {
+		var waitCalls, getCalls atomic.Int32
+		client := &mock.FlapsClient{
+			WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+				waitCalls.Add(1)
+				return &flaps.FlapsError{ResponseStatusCode: http.StatusNotFound, OriginalError: errors.New("not_found: machine not found")}
+			},
+			GetFunc: func(context.Context, string, string) (*fly.Machine, error) {
+				getCalls.Add(1)
+				return &fly.Machine{ID: "m1", State: fly.MachineStateDestroyed}, nil
+			},
+		}
+		ctx := flapsutil.NewContextWithClient(t.Context(), client)
+		m := &fly.Machine{
+			ID:      "m1",
+			Version: "01KB1234567890123456789ABC",
+			Config: &fly.MachineConfig{
+				AutoDestroy: true,
+				Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+			},
+			Events: []*fly.MachineEvent{{ID: "01JC1V3CW1VEKNMHX7MJ70DE1D", Type: "launch", Status: "created"}},
+		}
+		if err := WaitForLaunch(ctx, "app", m, 5*time.Second); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := waitCalls.Load(); got != 1 {
+			t.Errorf("wait calls = %d, want 1", got)
+		}
+		if got := getCalls.Load(); got != 1 {
+			t.Errorf("get calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("wait returns 404 and get returns 404", func(t *testing.T) {
+		var waitCalls atomic.Int32
+		notFoundErr := &flaps.FlapsError{ResponseStatusCode: http.StatusNotFound, OriginalError: errors.New("not_found: machine not found")}
+		client := &mock.FlapsClient{
+			WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+				waitCalls.Add(1)
+				return notFoundErr
+			},
+			GetFunc: func(context.Context, string, string) (*fly.Machine, error) {
+				return nil, notFoundErr
+			},
+		}
+		ctx := flapsutil.NewContextWithClient(t.Context(), client)
+		m := &fly.Machine{
+			ID: "m1",
+			Config: &fly.MachineConfig{
+				AutoDestroy: true,
+				Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+			},
+		}
+		if err := WaitForLaunch(ctx, "app", m, 5*time.Second); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := waitCalls.Load(); got != 1 {
+			t.Errorf("wait calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("wait returns 408 currently destroyed", func(t *testing.T) {
+		var waitCalls atomic.Int32
+		client := &mock.FlapsClient{
+			WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+				waitCalls.Add(1)
+				return &flaps.FlapsError{
+					ResponseStatusCode: http.StatusRequestTimeout,
+					OriginalError:      errors.New("deadline_exceeded: machine failed to reach desired state, started, currently destroyed"),
+				}
+			},
+		}
+		ctx := flapsutil.NewContextWithClient(t.Context(), client)
+		m := &fly.Machine{
+			ID:      "m1",
+			Version: "01KB1234567890123456789ABC",
+			Config: &fly.MachineConfig{
+				AutoDestroy: true,
+				Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+			},
+		}
+		if err := WaitForLaunch(ctx, "app", m, 5*time.Second); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := waitCalls.Load(); got != 1 {
+			t.Errorf("wait calls = %d, want 1", got)
+		}
+	})
+
+	t.Run("wait retries when 404 is transient and machine is still created", func(t *testing.T) {
+		var waitCalls atomic.Int32
+		client := &mock.FlapsClient{
+			WaitFunc: func(context.Context, string, string, ...flaps.WaitOption) error {
+				if waitCalls.Add(1) == 1 {
+					return &flaps.FlapsError{ResponseStatusCode: http.StatusNotFound, OriginalError: errors.New("not_found: machine not found")}
+				}
+				return nil
+			},
+			GetFunc: func(context.Context, string, string) (*fly.Machine, error) {
+				return &fly.Machine{ID: "m1", State: fly.MachineStateCreated}, nil
+			},
+		}
+		ctx := flapsutil.NewContextWithClient(t.Context(), client)
+		m := &fly.Machine{
+			ID: "m1",
+			Config: &fly.MachineConfig{
+				AutoDestroy: true,
+				Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+			},
+		}
+		if err := WaitForLaunch(ctx, "app", m, 5*time.Second); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := waitCalls.Load(); got != 2 {
+			t.Errorf("wait calls = %d, want 2", got)
+		}
+	})
+}

@@ -98,6 +98,22 @@ func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 		default:
 			var flapsErr *flaps.FlapsError
 			isFlapsError := errors.As(err, &flapsErr)
+			if action == "start" && machine.Config != nil && machine.Config.AutoDestroy && isFlapsError {
+				if flapsErr.ResponseStatusCode == http.StatusNotFound {
+					m, getErr := flapsClient.Get(waitCtx, appName, machine.ID)
+					if getErr == nil && (m.State == fly.MachineStateDestroyed || m.State == fly.MachineStateDestroying) {
+						return nil
+					}
+					var getFlapsErr *flaps.FlapsError
+					if errors.As(getErr, &getFlapsErr) && getFlapsErr.ResponseStatusCode == http.StatusNotFound {
+						return nil
+					}
+				}
+				if flapsErr.ResponseStatusCode == http.StatusRequestTimeout &&
+					(strings.HasSuffix(flapsErr.Error(), "currently destroyed") || strings.HasSuffix(flapsErr.Error(), "currently destroying")) {
+					return nil
+				}
+			}
 			if waitingForFirstStart && isFlapsError && (flapsErr.ResponseStatusCode == http.StatusConflict || flapsErr.ResponseStatusCode == http.StatusNotFound) {
 				return err
 			}
