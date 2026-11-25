@@ -61,8 +61,9 @@ func newOrg() *cobra.Command {
 and resources, and print it. The token is valid for 20 years unless you
 pass a shorter ` + "`--expiry`" + `, which is recommended.
 
-With no ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `), you pick an organization from a list
-in a terminal; without a terminal, the organization is required.
+The organization comes from ` + "`--org`" + `, ` + "`FLY_ORG`" + ` or a slug passed as an
+argument, in that order. With none of these, you pick one from a list in a
+terminal; without a terminal, it's required.
 
 For a token limited to one app, use ` + "`fly tokens create deploy`" + `.` + tokenFormatNote
 		usage = "org"
@@ -100,8 +101,8 @@ The token has read-only access to the app, plus permission to issue SSH
 certificates and add WireGuard peers, so it can reach the app over the
 organization's private network.
 
-The app comes from ` + "`--app`" + ` or fly.toml. The token is valid for 20 years
-unless you pass a shorter ` + "`--expiry`" + `.` + tokenFormatNote
+The app comes from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml, in that order. The token
+is valid for 20 years unless you pass a shorter ` + "`--expiry`" + `.` + tokenFormatNote
 		usage = "ssh"
 	)
 
@@ -138,13 +139,15 @@ func newOrgRead() *cobra.Command {
 apps and resources, and print it. The token is valid for 20 years unless
 you pass a shorter ` + "`--expiry`" + `, which is recommended.
 
-With no ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `), you pick an organization from a list
-in a terminal; without a terminal, the organization is required.
+The organization comes from ` + "`--org`" + `, ` + "`FLY_ORG`" + ` or a slug passed as an
+argument, in that order. With none of these, you pick one from a list in a
+terminal; without a terminal, it's required.
 
-With ` + "`--from-existing`" + `, no new token is created on the server; instead
-the token fly is currently using (for example from ` + "`FLY_API_TOKEN`" + `) is
+With ` + "`--from-existing`" + `, no new token is created on the server; instead the
+token fly is currently using (for example from ` + "`FLY_API_TOKEN`" + `) is
 restricted to read-only access locally. That token must be limited to a
-single organization.` + tokenFormatNote
+single organization. Its own expiry still applies, so ` + "`--expiry`" + ` can only
+shorten it, and ` + "`--org`" + ` and ` + "`--name`" + ` have no effect.` + tokenFormatNote
 		usage = "readonly"
 	)
 
@@ -183,8 +186,9 @@ func newDeploy() *cobra.Command {
 resources, and print it. Use it as ` + "`FLY_API_TOKEN`" + ` in CI to run
 ` + "`fly deploy`" + `. Also available as ` + "`fly tokens deploy`" + `.
 
-The app comes from ` + "`--app`" + ` or fly.toml. The token is valid for 20 years
-unless you pass a shorter ` + "`--expiry`" + `, which is recommended.` + tokenFormatNote
+The app comes from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml, in that order. The token
+is valid for 20 years unless you pass a shorter ` + "`--expiry`" + `, which is
+recommended.` + tokenFormatNote
 		usage = "deploy"
 	)
 
@@ -225,8 +229,8 @@ Pass one allowed command as arguments, or use ` + "`--command`" + ` (exact match
 and ` + "`--command-prefix`" + ` (prefix match), which can be repeated. With no
 command at all, any command is allowed.
 
-The app comes from ` + "`--app`" + ` or fly.toml. The token is valid for 20 years
-unless you pass a shorter ` + "`--expiry`" + `.` + tokenFormatNote
+The app comes from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml, in that order. The token
+is valid for 20 years unless you pass a shorter ` + "`--expiry`" + `.` + tokenFormatNote
 		usage = "machine-exec [command...]"
 	)
 
@@ -269,12 +273,13 @@ unless you pass a shorter ` + "`--expiry`" + `.` + tokenFormatNote
 func newWireGuard() *cobra.Command {
 	const (
 		short = "Create a WireGuard token"
-		long  = `Create an API token that can manage WireGuard peers for one
-organization, and print it. The token has no access to the organization's
-apps and read-only access to everything else.
+		long  = `Create an API token that can manage WireGuard peers for one organization,
+and print it. The token has no access to the organization's apps or its
+other features, and read-only access to the organization itself.
 
-With no ` + "`--org`" + ` (or ` + "`FLY_ORG`" + `), you pick an organization from a list
-in a terminal; without a terminal, the organization is required.
+The organization comes from ` + "`--org`" + `, ` + "`FLY_ORG`" + ` or a slug passed as an
+argument, in that order. With none of these, you pick one from a list in a
+terminal; without a terminal, it's required.
 
 The token is valid for 20 years unless you pass a shorter ` + "`--expiry`" + `.` + tokenFormatNote
 		usage = "wireguard"

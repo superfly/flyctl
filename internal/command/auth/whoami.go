@@ -17,10 +17,10 @@ import (
 
 func newWhoAmI() *cobra.Command {
 	const (
-		long = `Print the email address of the user that fly is authenticated as. This
-reflects the token fly is using, which can come from ` + "`--access-token`" + `,
-` + "`FLY_ACCESS_TOKEN`" + `, ` + "`FLY_API_TOKEN`" + ` or the login saved by
-` + "`fly auth login`" + `.`
+		long = `Print the email address of the user, or the identity of the token, that fly
+is authenticated as. This reflects the token fly is using, which can come
+from ` + "`--access-token`" + `, ` + "`FLY_ACCESS_TOKEN`" + `, ` + "`FLY_API_TOKEN`" + ` or the login
+saved by ` + "`fly auth login`" + `.`
 		short = "Show the currently authenticated user"
 	)
 

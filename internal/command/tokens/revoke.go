@@ -17,9 +17,12 @@ func newRevoke() *cobra.Command {
 		long  = `Revoke one or more API tokens, passed as token IDs. Get IDs from
 ` + "`fly tokens list`" + `.
 
-If a token can't be revoked, the error is printed and the remaining IDs
-are still processed. To revoke the token you're currently authenticating
-with, use ` + "`fly tokens revoke supplied`" + `.`
+If a token can't be revoked, the error is printed and the remaining IDs are
+still processed.
+
+To revoke a token you supply with ` + "`--access-token`" + `, ` + "`FLY_ACCESS_TOKEN`" + ` or
+` + "`FLY_API_TOKEN`" + `, use ` + "`fly tokens revoke supplied`" + `. To revoke the login saved
+by ` + "`fly auth login`" + `, use ` + "`fly auth logout`" + `.`
 		usage = "revoke [flags] ID ID ..."
 	)
 

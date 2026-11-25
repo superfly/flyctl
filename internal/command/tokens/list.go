@@ -22,9 +22,15 @@ func newList() *cobra.Command {
 		long  = `List the limited API tokens for an app or an organization, with their
 IDs, names, creators, expiry and revocation times.
 
-By default, it lists tokens for the app from ` + "`--app`" + ` or fly.toml. Pass
-` + "`--org`" + ` or ` + "`--scope org`" + ` to list an organization's tokens instead;
-without ` + "`--org`" + `, you pick the organization from a list in a terminal.
+By default, it lists tokens for the app from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml.
+Pass ` + "`--org`" + ` or ` + "`--scope org`" + ` to list an organization's tokens instead. With
+` + "`--scope org`" + ` and no ` + "`--org`" + `, the organization comes from ` + "`FLY_ORG`" + ` or a
+slug passed as an argument, in that order; with neither, you pick one from a
+list in a terminal.
+
+` + "`--app`" + `, ` + "`--config`" + ` and ` + "`--scope app`" + ` always list the app's tokens, even
+with ` + "`--org`" + `, which must then be the app's organization.
+
 Use the IDs with ` + "`fly tokens revoke`" + `.`
 		usage = "list"
 	)
