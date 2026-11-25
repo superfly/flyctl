@@ -3,6 +3,7 @@ package command
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -10,7 +11,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
+	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func TestParsePortFlag(t *testing.T) {
@@ -246,4 +255,27 @@ func FuzzParsePortFlagRange(f *testing.F) {
 		assert.Equal(t, new(int(end)), gotEnd)
 		assert.Equal(t, []string{"tls", "http"}, handlers)
 	})
+}
+
+func TestDetermineImageUsesAppOrgForLookup(t *testing.T) {
+	io, _, _, _ := iostreams.Test()
+	ctx := iostreams.NewContext(context.Background(), io)
+	ctx = launchdarkly.NewContextWithClient(ctx, &launchdarkly.Client{})
+	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+		GetAppFunc: func(context.Context, string) (*flaps.App, error) {
+			return &flaps.App{Organization: flaps.AppOrganizationInfo{InternalNumericID: 7, Slug: "builder-org"}}, nil
+		},
+	})
+	checkOrg := authtest.Organization(t, 7)
+	stop := errors.New("stop after org lookup")
+	ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+		GetOrganizationFunc: func(ctx context.Context, slug string) (*uiex.Organization, error) {
+			require.Equal(t, "builder-org", slug)
+			checkOrg(ctx)
+
+			return nil, stop
+		},
+	})
+	_, err := DetermineImage(ctx, "app", ".")
+	require.ErrorIs(t, err, stop)
 }

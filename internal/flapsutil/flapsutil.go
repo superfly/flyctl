@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
 )
@@ -32,7 +33,7 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 		}
 	}
 
-	opts.Transport = tracing.NewTransport(opts.Transport)
+	opts.Transport = tracing.NewTransport(requestauth.Transport(opts.Transport))
 
 	return flaps.NewWithOptions(ctx, opts)
 }

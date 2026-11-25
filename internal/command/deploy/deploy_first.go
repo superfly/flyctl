@@ -10,12 +10,14 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth"
 )
 
 func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, ipType string, org string) error {
 	if !md.isFirstDeploy || md.restartOnly {
 		return nil
 	}
+	ctx = requestauth.WithOrganizations(ctx, uint64(md.app.Organization.InternalNumericID))
 	if err := md.provisionIpsOnFirstDeploy(ctx, ipType, org); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses. Use `fly ips` commands to remediate it. ERROR: %s", err)
 	}

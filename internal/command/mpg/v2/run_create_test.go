@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	mpgv2 "github.com/superfly/flyctl/internal/uiex/mpg/v2"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -481,6 +482,9 @@ func TestRunCreate_Credentials(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, stdout := createTestContext(t, "iad")
+			params := sampleParams()
+			params.OrgID = 7
+			checkOrg := authtest.Organization(t, params.OrgID)
 			credsCalls := 0
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				GetRegionsFunc: func(context.Context) (*flaps.RegionData, error) {
@@ -492,7 +496,8 @@ func TestRunCreate_Credentials(t *testing.T) {
 				GetManagedPostgresClusterFunc: func(context.Context, string) (flaps.ManagedPostgresCluster, error) {
 					return flaps.ManagedPostgresCluster{ID: "mpg-123", Status: flaps.ManagedPostgresStatusReady, Plan: test.plan, Endpoints: clusterEndpoints()}, nil
 				},
-				GetManagedPostgresUserCredentialsFunc: func(_ context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+				GetManagedPostgresUserCredentialsFunc: func(ctx context.Context, id, username string) (flaps.ManagedPostgresUserCredentials, error) {
+					checkOrg(ctx)
 					credsCalls++
 					require.Equal(t, "mpg-123", id)
 					require.Equal(t, "fly-user", username)
@@ -505,7 +510,7 @@ func TestRunCreate_Credentials(t *testing.T) {
 			})
 			ctx = mpgv2.NewContextWithClient(ctx, &mock.MpgV2Client{})
 
-			err := RunCreate(ctx, "my-org", sampleParams(), samplePlan())
+			err := RunCreate(ctx, "my-org", params, samplePlan())
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				require.Equal(t, test.wantCredsCalls, credsCalls)

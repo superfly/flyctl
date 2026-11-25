@@ -492,7 +492,7 @@ func runMachineRun(ctx context.Context) error {
 	s.Start()
 	// wait for machine to be started
 	err = tracing.WorkflowPhase(ctx, "wait_for_start", func(ctx context.Context) error {
-		return mach.WaitForStartOrStop(ctx, app.Name, machine, "start", time.Minute*5)
+		return mach.WaitForLaunch(ctx, app.Name, machine, time.Minute*5)
 	})
 	s.Stop()
 	if err != nil {
