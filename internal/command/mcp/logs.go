@@ -13,11 +13,11 @@ func newLogs() *cobra.Command {
 	const (
 		short = "[experimental] Show logs for an MCP server"
 		long  = `Show the logs of the Fly app behind an MCP server, by running ` + "`fly logs`" + `
-for it. The server is an entry in an MCP client config, chosen like
-` + "`fly mcp remove`" + ` does: by ` + "`--server`" + ` and a client flag, or from a list
-when there is more than one choice. The app name is worked out from the
-entry's URL. Logs stream until you stop the command, unless you pass
-` + "`--no-tail`" + `.
+for it. The server is an entry in an MCP client config, chosen with
+` + "`--server`" + ` and one client flag (such as ` + "`--claude`" + `). Leave either out and
+it is picked as described in ` + "`fly mcp remove --help`" + `. The app name is
+worked out from the entry's URL. Logs stream until you stop the command,
+unless you pass ` + "`--no-tail`" + `.
 `
 		usage = "logs"
 	)

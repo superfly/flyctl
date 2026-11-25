@@ -109,10 +109,12 @@ func NewInspect() *cobra.Command {
 connected to a remote MCP server through ` + "`fly mcp proxy`" + `. The Inspector
 runs through ` + "`npx`" + `, which needs Node.js installed.
 
-The URL and credentials are read from an entry in an MCP client config file,
-chosen like ` + "`fly mcp remove`" + ` does: by ` + "`--server`" + ` and a client flag, or
-from a list when there is more than one choice. Flags such as ` + "`--url`" + `
-and ` + "`--bearer-token`" + ` override the values in the entry.
+The URL and bearer token are read from an entry in an MCP client config
+file, chosen with ` + "`--server`" + ` and one client flag (such as ` + "`--claude`" + `).
+Leave either out and it is picked as described in ` + "`fly mcp remove --help`" + `.
+Flags such as ` + "`--url`" + ` and ` + "`--bearer-token`" + ` override the values in the
+entry. For a server that uses HTTP basic auth, pass ` + "`--user`" + ` and
+` + "`--password`" + `.
 `
 		usage = "inspect"
 	)

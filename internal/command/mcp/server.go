@@ -51,11 +51,13 @@ destroying apps, Machines and volumes. By default it serves MCP over stdio.
 With ` + "`--stream`" + ` or ` + "`--sse`" + `, it serves HTTP on 127.0.0.1 port 8080
 instead (see ` + "`--port`" + ` and ` + "`--bind-addr`" + `).
 
-With a client flag (such as ` + "`--claude`" + `) or ` + "`--config`" + `, the server
-doesn't start: instead an entry named "flyctl" (or ` + "`--server`" + `) is
-written to that client's config to run this command. With ` + "`--stream`" + ` or
-` + "`--sse`" + `, that entry contains your access token. ` + "`--inspector`" + `
-opens the MCP Inspector through ` + "`npx`" + `.
+With a client flag (such as ` + "`--claude`" + `) or ` + "`--config`" + `, the server doesn't
+start: instead an entry named "flyctl" (or ` + "`--server`" + `) is written to that
+client's config, which runs ` + "`fly mcp server`" + `. With ` + "`--stream`" + ` or ` + "`--sse`" + `,
+the entry instead connects to http://localhost at ` + "`--port`" + ` and contains
+your access token; start that server separately, by running this command
+with the same flag and port and no client flag. ` + "`--inspector`" + ` opens the
+MCP Inspector through ` + "`npx`" + `.
 
 This is distinct from the hosted Fly MCP server that ` + "`fly setup agent`" + `
 configures.

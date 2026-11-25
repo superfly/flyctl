@@ -27,7 +27,7 @@ func NewLaunch() *cobra.Command {
 		long  = `Deploy a stdio MCP program as a new Fly app, served over HTTP by
 ` + "`fly mcp wrap`" + `. Pass the program's command line as one quoted argument,
 for example ` + "`fly mcp launch \"npx -y @modelcontextprotocol/server-memory\"`" + `,
-or use ` + "`--image`" + ` to run an image's own command.
+or use ` + "`--image`" + ` to run an image's own entrypoint and CMD.
 
 The app is created with ` + "`fly launch --yes --no-deploy`" + ` and then deployed
 to a single Machine, which suspends when idle unless you change
@@ -35,10 +35,10 @@ to a single Machine, which suspends when idle unless you change
 from the command. This creates billable resources; remove them with
 ` + "`fly mcp destroy`" + `.
 
-With a client flag (such as ` + "`--claude`" + `) or ` + "`--config`" + `, the server is
-also added to that client's config with ` + "`fly mcp add`" + `, which by default
-sets up bearer-token authentication. Without one, no client is configured
-and no token is generated.
+With a client flag (such as ` + "`--claude`" + `) or ` + "`--config`" + ` (an absolute path),
+the server is also added to that client's config with ` + "`fly mcp add`" + `, which
+by default sets up bearer-token authentication. Without one, no client is
+configured and no token is generated.
 `
 		usage = "launch command"
 	)
