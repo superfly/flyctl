@@ -17,7 +17,27 @@ import (
 func create() (cmd *cobra.Command) {
 	const (
 		short = "Provision a Tigris object storage bucket"
-		long  = short + "\n"
+		long  = `Provision a Tigris object storage bucket. In an app directory, or with
+` + "`--app`" + `, the bucket is attached to that app, and the command fails if
+the app already has one. Otherwise the bucket belongs to an
+organization, which you pick from a list unless you pass ` + "`--org`" + ` or set
+FLY_ORG.
+
+Pass ` + "`--name`" + ` to choose the bucket name; otherwise you're asked for one,
+and can leave it blank to have one generated. The first time you use
+Tigris you must accept its terms of service. ` + "`--yes`" + ` accepts them and
+skips the name prompt. Without a terminal, pass ` + "`--yes`" + `, or just
+` + "`--name`" + ` if you've already accepted the terms; outside an app, ` + "`--org`" + `
+or FLY_ORG is required too.
+
+For an app's bucket, the credentials are set as secrets on the app and
+its machines restart to pick them up; if the app hasn't been deployed
+yet, they take effect on its first deploy. If any of those secrets
+already exist, none are set. The credentials are always printed.
+
+To add a shadow bucket, pass all five of ` + "`--shadow-access-key`" + `,
+` + "`--shadow-secret-key`" + `, ` + "`--shadow-region`" + `, ` + "`--shadow-name`" + ` and
+` + "`--shadow-endpoint`" + `.`
 	)
 
 	cmd = command.New("create", short, long, runCreate, command.RequireSession, command.LoadAppNameIfPresent)

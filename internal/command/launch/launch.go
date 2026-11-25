@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -514,7 +515,7 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 	}
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	app, err := flapsClient.CreateApp(ctx, flaps.CreateAppRequest{
+	app, err := flapsClient.CreateApp(requestauth.WithOrganizations(ctx, org.InternalNumericID), flaps.CreateAppRequest{
 		Name: state.Plan.AppName,
 		Org:  org.Slug,
 	})
@@ -535,14 +536,14 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 			state.appConfig.AppName = name
 			state.PlanSource.appNameSource = "generated"
 
-			app, err = flapsClient.CreateApp(ctx, flaps.CreateAppRequest{Name: name, Org: org.Slug})
+			app, err = flapsClient.CreateApp(requestauth.WithOrganizations(ctx, org.InternalNumericID), flaps.CreateAppRequest{Name: name, Org: org.Slug})
 		}
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	if err := flapsClient.WaitForApp(ctx, app.Name); err != nil {
+	if err := flapsClient.WaitForApp(requestauth.WithOrganizations(ctx, org.InternalNumericID), app.Name); err != nil {
 		return nil, err
 	}
 

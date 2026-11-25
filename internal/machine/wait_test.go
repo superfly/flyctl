@@ -90,6 +90,9 @@ func TestWaitForFirstStartVersion(t *testing.T) {
 					t.Errorf("unexpected request: %s %s", r.Method, r.URL)
 				}
 				w.Header().Set("Content-Type", "application/json")
+				if got := r.URL.Query().Get("from_event_id"); got != "01JC1V3CW1VEKNMHX7MJ70DE1D" {
+					t.Errorf("launch cursor = %q", got)
+				}
 				switch calls.Add(1) {
 				case 1:
 					if r.URL.Query().Has("version") {
@@ -115,7 +118,8 @@ func TestWaitForFirstStartVersion(t *testing.T) {
 			}
 			ctx := flapsutil.NewContextWithClient(t.Context(), &mock.FlapsClient{WaitFunc: client.Wait})
 			m := &fly.Machine{ID: "m1", Version: tc.version, Config: &fly.MachineConfig{Restart: &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}}}
-			err = WaitForStartOrStop(ctx, "app", m, "start", 5*time.Second)
+			m.Events = []*fly.MachineEvent{{ID: "01JC1V3CW1VEKNMHX7MJ70DE1D", Type: "launch", Status: "created"}}
+			err = WaitForLaunch(ctx, "app", m, 5*time.Second)
 			if got := calls.Load(); got != tc.wantCalls {
 				t.Errorf("wait calls = %d, want %d", got, tc.wantCalls)
 			}

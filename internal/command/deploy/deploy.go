@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/machinelimit"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -360,6 +361,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		return err
 	}
 
+	ctx = requestauth.WithOrganizations(ctx, uint64(app.Organization.InternalNumericID))
 	recordDeployIdentity(ctx, app)
 
 	// Start the feature flag client, if we haven't already
