@@ -123,6 +123,31 @@ func TestConfig_ValidateServices(t *testing.T) {
 	require.NoErrorf(t, err, x)
 }
 
+func TestConfig_ValidateServicesOneProcessGroup(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/validate-services-one-group.toml")
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetMachinesPlatform())
+
+	err, x := cfg.Validate(_getValidationContext(t))
+	require.NoErrorf(t, err, x)
+
+	mConfig, err := cfg.ToMachineConfig("web", nil)
+	require.NoError(t, err)
+	require.Len(t, mConfig.Services, 2)
+	assert.Equal(t, 8080, mConfig.Services[0].InternalPort)
+	assert.Equal(t, 9000, mConfig.Services[1].InternalPort)
+}
+
+func TestConfig_ValidateServicesTwoProcessGroups(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/validate-services-two-groups.toml")
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetMachinesPlatform())
+
+	err, x := cfg.Validate(_getValidationContext(t))
+	require.Error(t, err, x)
+	require.Contains(t, x, "Service has no processes set but app has 2 processes defined")
+}
+
 func TestCacheDiskValidation(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

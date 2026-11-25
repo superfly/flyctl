@@ -1,0 +1,14 @@
+app = "foo"
+primary_region = "ord"
+
+[processes]
+web = "/app/server"
+
+[http_service]
+internal_port = 8080
+
+[[services]]
+internal_port = 9000
+
+[[services.ports]]
+port = 9000

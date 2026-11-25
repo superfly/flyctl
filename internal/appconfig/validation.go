@@ -155,7 +155,7 @@ func (c *Config) validateServicesSection() (extraInfo string, err error) {
 
 	for _, service := range c.AllServices() {
 		switch {
-		case len(service.Processes) == 0 && processCount > 0:
+		case len(service.Processes) == 0 && processCount > 1:
 			extraInfo += fmt.Sprintf(
 				"Service has no processes set but app has %d processes defined; update fly.toml to set processes for each service\n",
 				processCount,
