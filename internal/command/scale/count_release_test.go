@@ -58,6 +58,7 @@ func TestScaleCountReleaseFallback(t *testing.T) {
 					require.NotEmpty(t, tc.retryBody)
 					status, body = 200, tc.retryBody
 				}
+
 				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 			})
 			client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{BaseURL: "https://example.invalid", Transport: &fly.Transport{UnderlyingTransport: transport}})

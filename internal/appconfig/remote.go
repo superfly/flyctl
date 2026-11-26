@@ -65,8 +65,10 @@ func fallbackConfigForGroups(ctx context.Context, client flyutil.Client, appName
 		if releaseErr != nil {
 			reason = "the release config could not be loaded"
 		}
+
 		return nil, fmt.Errorf("could not verify process group %q: %s and the config reconstructed from Machines only lists %v", group, reason, names)
 	}
+
 	return cfg, nil
 }
 
@@ -79,6 +81,7 @@ func transientReleaseError(err error) bool {
 		}
 	}
 	var netErr net.Error
+
 	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
