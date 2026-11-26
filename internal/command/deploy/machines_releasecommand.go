@@ -3,9 +3,12 @@ package deploy
 import (
 	"container/ring"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -28,6 +31,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
+
+const releaseCommandAttemptKey = "fly_release_command_attempt"
 
 var natsConnectTimeout = 10 * time.Second
 
@@ -82,8 +87,10 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 	var stream logs.LogStream
 
 	eg, groupCtx := errgroup.WithContext(ctx)
+	var recoveredStart func(context.Context) error
 	eg.Go(func() error {
-		err := md.createOrUpdateReleaseCmdMachine(groupCtx)
+		var err error
+		recoveredStart, err = md.createOrUpdateReleaseCmdMachine(groupCtx)
 		if err != nil {
 			tracing.RecordError(ctx, span, err, "failed to create "+commandType+" cmd machine")
 
@@ -144,7 +151,14 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 
 	fmt.Fprintln(md.io.ErrOut, "Starting machine")
 
-	if err = startReleaseCommandMachine(ctx, releaseCmdMachine.Start, md.waitTimeout); err != nil {
+	if recoveredStart == nil {
+		err = startReleaseCommandMachine(ctx, func(ctx context.Context) error {
+			return releaseCmdMachine.Start(fly.WithoutHTTPRetries(ctx))
+		}, md.waitTimeout)
+	} else {
+		err = recoveredStart(ctx)
+	}
+	if err != nil {
 		fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
 
 		return
@@ -235,7 +249,7 @@ func dedicatedHostIdMismatch(m *fly.Machine, ac *appconfig.Config) bool {
 	return strings.TrimSpace(ac.HostDedicationID) != "" && machineHostDedicationID(m) != ac.HostDedicationID
 }
 
-func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
+func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) (func(context.Context) error, error) {
 	span := trace.SpanFromContext(ctx)
 
 	// Existent release command machines must be destroyed if not already, are set to auto-destroy anyways
@@ -254,33 +268,180 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 	return md.createReleaseCommandMachine(ctx)
 }
 
-func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) error {
+func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) (func(context.Context) error, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_release_cmd_machine")
 	defer span.End()
 
 	launchInput, err := md.launchInputForReleaseCommand(nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	releaseCmdMachine, err := md.flapsClient.Launch(ctx, md.app.Name, *launchInput)
+	attempt := rand.Text()
+	launchInput.Config.Metadata[releaseCommandAttemptKey] = attempt
+	// A failed response can arrive after create commits. Issue a single write
+	// so the attempt marker identifies only one create request.
+	releaseCmdMachine, err := md.flapsClient.Launch(fly.WithoutHTTPRetries(ctx), md.app.Name, *launchInput)
+	var recoveredStart func(context.Context) error
 	if err != nil {
-		tracing.RecordError(ctx, span, err, "failed to get ip addresses")
-
-		return fmt.Errorf("error creating a release_command machine: %w", err)
+		var responseErr *flaps.FlapsError
+		if errors.As(err, &responseErr) && responseErr.ResponseStatusCode == http.StatusRequestTimeout && md.releaseId != "" && md.waitTimeout > 0 {
+			deadline := time.Now().Add(md.waitTimeout)
+			waitCtx, cancel := context.WithDeadline(ctx, deadline)
+			candidate := md.findReleaseCommandMachine(waitCtx, attempt)
+			cancel()
+			if candidate != nil {
+				recoveredStart = func(ctx context.Context) error {
+					recoveryCtx, cancel := context.WithDeadline(ctx, deadline)
+					defer cancel()
+					return md.startRecoveredReleaseCommandMachine(recoveryCtx, candidate, attempt)
+				}
+				releaseCmdMachine, err = candidate, nil
+			}
+		}
+		if err != nil {
+			tracing.RecordError(ctx, span, err, "failed to create release command machine")
+			return nil, fmt.Errorf("error creating a release_command machine: %w", err)
+		}
 	}
 
 	statuslogger.Logf(ctx, "Created release_command machine %s", md.colorize.Bold(releaseCmdMachine.ID))
 	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, md.app.Name, []*fly.Machine{releaseCmdMachine}, true)
+	if recoveredStart != nil {
+		return recoveredStart, nil
+	}
 
 	lm := md.releaseCommandMachine.GetMachines()[0]
 	if err := lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, machine.WithJustCreated()); err != nil {
-		err = suggestChangeWaitTimeout(err, "wait-timeout")
-
-		return err
+		return nil, suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 
+	return nil, nil
+}
+
+func (md *machineDeployment) findReleaseCommandMachine(ctx context.Context, attempt string) *fly.Machine {
+	query := url.Values{"metadata." + releaseCommandAttemptKey: {attempt}}.Encode()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	var observed *fly.Machine
+	for ctx.Err() == nil {
+		matches, err := md.flapsClient.List(ctx, md.app.Name, query)
+		if err != nil || len(matches) > 1 || ctx.Err() != nil {
+			return nil
+		}
+		if observed != nil && len(matches) == 0 {
+			return nil
+		}
+		if len(matches) == 1 {
+			candidate := matches[0]
+			if candidate == nil || candidate.ID == "" || candidate.InstanceID == "" {
+				return nil
+			}
+			if observed != nil && (observed.ID != candidate.ID || observed.InstanceID != candidate.InstanceID) {
+				return nil
+			}
+			observed = candidate
+			switch candidate.State {
+			case fly.MachineStateStopped:
+				if (candidate.Config != nil && !md.matchesReleaseCommandConfig(candidate.Config, attempt)) ||
+					(len(candidate.Events) > 0 && !hasOnlyCreationEvents(candidate.Events)) {
+					return nil
+				}
+				fresh, err := md.flapsClient.Get(ctx, md.app.Name, candidate.ID)
+				if err != nil || ctx.Err() != nil || !md.isUnstartedReleaseCommandMachine(candidate, fresh, attempt) {
+					return nil
+				}
+				return fresh
+			case fly.MachineStateCreated, "pending":
+				// The build is still preparing the skip-launch Machine.
+			default:
+				return nil
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
 	return nil
+}
+
+func (md *machineDeployment) startRecoveredReleaseCommandMachine(ctx context.Context, candidate *fly.Machine, attempt string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	appName := md.app.Name
+	ttl := 120
+	// The lease endpoint treats an empty nonce as a new lease. Use the SDK's
+	// one-shot POST here because AcquireLease retries ambiguous responses.
+	lease, err := md.flapsClient.RefreshLease(fly.WithoutHTTPRetries(ctx), appName, candidate.ID, &ttl, "")
+	if err != nil {
+		return fmt.Errorf("acquire lease for recovered release_command machine %s: %w", candidate.ID, err)
+	}
+	if lease == nil || lease.Status != "success" || lease.Data == nil || lease.Data.Nonce == "" {
+		return fmt.Errorf("missing lease for recovered release_command machine %s", candidate.ID)
+	}
+	nonce := lease.Data.Nonce
+	releaseLease := true
+	defer func() {
+		if !releaseLease {
+			// An ambiguous Start may still be in flight. Leave its fence in place
+			// until the server expires the lease.
+			return
+		}
+		// Release our lease even if the start attempt used the remaining time.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 500*time.Millisecond)
+		defer cancel()
+		if err := md.flapsClient.ReleaseLease(fly.WithoutHTTPRetries(cleanupCtx), appName, candidate.ID, nonce); err != nil {
+			tracing.RecordError(ctx, trace.SpanFromContext(ctx), err, "failed to release recovered release command machine lease")
+		}
+	}()
+	if lease.Data.Version != candidate.InstanceID {
+		return fmt.Errorf("recovered release_command machine %s changed before lease acquisition", candidate.ID)
+	}
+
+	// flyd permits a start with any nonce when no lease exists. Send requests
+	// only while there is time left on this lease, with room for clock skew.
+	leaseCtx, cancel := context.WithDeadline(ctx, time.Unix(lease.Data.ExpiresAt, 0).Add(-5*time.Second))
+	defer cancel()
+	return startReleaseCommandMachine(leaseCtx, func(ctx context.Context) error {
+		fresh, err := md.flapsClient.Get(ctx, appName, candidate.ID)
+		if err != nil {
+			return fmt.Errorf("check recovered release_command machine %s: %w", candidate.ID, err)
+		}
+		if !md.isUnstartedReleaseCommandMachine(candidate, fresh, attempt) ||
+			!slices.EqualFunc(candidate.Events, fresh.Events, func(before, after *fly.MachineEvent) bool {
+				return before.ID == after.ID
+			}) {
+			return fmt.Errorf("recovered release_command machine %s is not the unstarted Machine from this release", candidate.ID)
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		resp, err := md.flapsClient.Start(fly.WithoutHTTPRetries(ctx), appName, candidate.ID, nonce)
+		releaseLease = err == nil || isReleaseCommandBuildNotReady(err)
+		if err != nil {
+			return err
+		}
+		if resp == nil || resp.PreviousState != fly.MachineStateStopped {
+			return fmt.Errorf("start did not confirm that recovered release_command machine %s was stopped", candidate.ID)
+		}
+		return nil
+	}, md.waitTimeout)
+}
+
+func (md *machineDeployment) isUnstartedReleaseCommandMachine(candidate, fresh *fly.Machine, attempt string) bool {
+	return fresh != nil && fresh.ID == candidate.ID && fresh.InstanceID == candidate.InstanceID &&
+		fresh.State == fly.MachineStateStopped && md.matchesReleaseCommandConfig(fresh.Config, attempt) &&
+		hasOnlyCreationEvents(fresh.Events)
+}
+
+func (md *machineDeployment) matchesReleaseCommandConfig(cfg *fly.MachineConfig, attempt string) bool {
+	return cfg != nil && cfg.AutoDestroy &&
+		cfg.Metadata[releaseCommandAttemptKey] == attempt &&
+		cfg.Metadata[fly.MachineConfigMetadataKeyFlyReleaseId] == md.releaseId &&
+		cfg.ProcessGroup() == fly.MachineProcessGroupFlyAppReleaseCommand
 }
 
 func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
@@ -373,9 +534,7 @@ func startReleaseCommandMachine(ctx context.Context, start func(context.Context)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		var flapsErr *flaps.FlapsError
-		if !errors.As(err, &flapsErr) || flapsErr.ResponseStatusCode != http.StatusPreconditionFailed ||
-			flapsErr.Error() != "failed_precondition: machine build not ready, retry the start request" {
+		if !isReleaseCommandBuildNotReady(err) {
 			return err
 		}
 		lastRefusal = err
@@ -387,6 +546,12 @@ func startReleaseCommandMachine(ctx context.Context, start func(context.Context)
 		case <-timer.C:
 		}
 	}
+}
+
+func isReleaseCommandBuildNotReady(err error) bool {
+	var flapsErr *flaps.FlapsError
+	return errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusPreconditionFailed &&
+		flapsErr.Error() == "failed_precondition: machine build not ready, retry the start request"
 }
 
 func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
@@ -410,4 +575,19 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 	md.releaseCommandMachine.RemoveMachines(ctx, []machine.LeasableMachine{releaseCmdMachine})
 
 	return nil
+}
+
+func hasOnlyCreationEvents(events []*fly.MachineEvent) bool {
+	expected := [][2]string{{"update", "stopped"}, {"launch", "created"}, {"launch", "pending"}}
+	if len(events) < 2 || len(events) > len(expected) {
+		return false
+	}
+	ids := map[string]bool{}
+	for i, e := range events {
+		if e == nil || e.ID == "" || ids[e.ID] || e.Type != expected[i][0] || e.Status != expected[i][1] {
+			return false
+		}
+		ids[e.ID] = true
+	}
+	return true
 }
