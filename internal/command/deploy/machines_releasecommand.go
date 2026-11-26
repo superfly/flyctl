@@ -130,9 +130,9 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 			return
 		}
 		for entry := range stream.Stream(logsCtx, logOpts) {
-			var ts time.Time
-			if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
-				err = fmt.Errorf("failed parsing timestamp %q: %w", entry.Timestamp, err)
+			ts, parseErr := time.Parse(time.RFC3339Nano, entry.Timestamp)
+			if parseErr != nil {
+				cancelLogs(fmt.Errorf("failed parsing timestamp %q: %w", entry.Timestamp, parseErr))
 
 				return
 			}
@@ -153,31 +153,34 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 
 	if recoveredStart == nil {
 		err = startReleaseCommandMachine(ctx, func(ctx context.Context) error {
-			return releaseCmdMachine.Start(fly.WithoutHTTPRetries(ctx))
+			return md.checkReleaseCommandStart(ctx, releaseCmdMachine.Machine(), releaseCmdMachine.Start(fly.WithoutHTTPRetries(ctx)))
 		}, md.waitTimeout)
 	} else {
 		err = recoveredStart(ctx)
 	}
-	if err != nil {
-		fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
+	exitCode := 0
+	if !errors.Is(err, errVerifiedReleaseExit) {
+		if err != nil {
+			fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
 
-		return
-	}
+			return
+		}
 
-	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
-	err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
-	if err != nil {
-		tracing.RecordError(ctx, span, err, "failed to wait for "+commandType+" cmd machine")
+		// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
+		err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
+		if err != nil {
+			tracing.RecordError(ctx, span, err, "failed to wait for "+commandType+" cmd machine")
 
-		return err
-	}
-	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.releaseCmdTimeout, true)
-	if err != nil {
-		return fmt.Errorf("error finding the %s_command machine %s exit event: %w", commandType, releaseCmdMachine.Machine().ID, err)
-	}
-	exitCode, err := lastExitEvent.Request.GetExitCode()
-	if err != nil {
-		return fmt.Errorf("error get %s_command machine %s exit code: %w", commandType, releaseCmdMachine.Machine().ID, err)
+			return err
+		}
+		lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.releaseCmdTimeout, true)
+		if err != nil {
+			return fmt.Errorf("error finding the %s_command machine %s exit event: %w", commandType, releaseCmdMachine.Machine().ID, err)
+		}
+		exitCode, err = lastExitEvent.Request.GetExitCode()
+		if err != nil {
+			return fmt.Errorf("error get %s_command machine %s exit code: %w", commandType, releaseCmdMachine.Machine().ID, err)
+		}
 	}
 
 	if flag.GetBool(ctx, "verbose") {
@@ -422,6 +425,10 @@ func (md *machineDeployment) startRecoveredReleaseCommandMachine(ctx context.Con
 		resp, err := md.flapsClient.Start(fly.WithoutHTTPRetries(ctx), appName, candidate.ID, nonce)
 		releaseLease = err == nil || isReleaseCommandBuildNotReady(err)
 		if err != nil {
+			err = md.checkReleaseCommandStart(ctx, candidate, err)
+			if errors.Is(err, errVerifiedReleaseExit) {
+				releaseLease = true
+			}
 			return err
 		}
 		if resp == nil || resp.PreviousState != fly.MachineStateStopped {
