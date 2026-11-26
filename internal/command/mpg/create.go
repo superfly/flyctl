@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -137,12 +138,14 @@ func runCreate(ctx context.Context) error {
 			return fmt.Errorf("unknown plan %q; valid plans are %s", flag.GetString(ctx, "plan"), planNames())
 		}
 
-		plans, err := availablePlans(ctx, slug)
+		plans, err := availablePlans(requestauth.WithOrganizations(ctx, org.InternalNumericID), slug)
 		if err != nil {
 			if len(plans) == 0 {
-				return fmt.Errorf("%w; pass --plan to choose", err)
+				return err
 			}
-			fmt.Fprintf(io.ErrOut, "Warning: %v. Defaulting to Basic; pass --plan to choose.\n", err)
+			if !io.IsInteractive() {
+				fmt.Fprintf(io.ErrOut, "Warning: %v. Defaulting to Basic; pass --plan to choose.\n", err)
+			}
 		}
 		plan = defaultPlan(plans)
 		if io.IsInteractive() {

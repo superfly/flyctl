@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/requestauth/authtest"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -37,17 +38,19 @@ func createRequest(t *testing.T, args ...string) (flaps.CreateManagedPostgresClu
 	t.Helper()
 
 	// An organization that can use Basic, as every organization could before the Developer plan.
-	req, _, err := createRequestWithPlans(t, []flaps.ManagedPostgresPlan{{Plan: "dev-256"}, {Plan: "basic"}}, nil, args...)
+	req, _, err := createRequestWithPlans(t, []flaps.ManagedPostgresPlan{{Plan: "dev-256"}, {Plan: "basic"}}, nil, false, args...)
 
 	return req, err
 }
 
 // createRequestWithPlans is createRequest for an organization whose plan
 // lookup returns plans and plansErr. It also returns what was written to stderr.
-func createRequestWithPlans(t *testing.T, plans []flaps.ManagedPostgresPlan, plansErr error, args ...string) (flaps.CreateManagedPostgresClusterRequest, string, error) {
+func createRequestWithPlans(t *testing.T, plans []flaps.ManagedPostgresPlan, plansErr error, interactive bool, args ...string) (flaps.CreateManagedPostgresClusterRequest, string, error) {
 	t.Helper()
 
 	ios, _, _, stderr := iostreams.Test()
+	ios.SetStdinTTY(interactive)
+	ios.SetStdoutTTY(interactive)
 	ctx := iostreams.NewContext(context.Background(), ios)
 	ctx = config.NewContext(ctx, &config.Config{})
 
@@ -64,7 +67,8 @@ func createRequestWithPlans(t *testing.T, plans []flaps.ManagedPostgresPlan, pla
 	checkOrg := authtest.Organization(t, 7)
 	var sent flaps.CreateManagedPostgresClusterRequest
 	ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
-		ListManagedPostgresPlansFunc: func(_ context.Context, slug string) ([]flaps.ManagedPostgresPlan, error) {
+		ListManagedPostgresPlansFunc: func(ctx context.Context, slug string) ([]flaps.ManagedPostgresPlan, error) {
+			checkOrg(ctx)
 			assert.Equal(t, "someone", slug, "the lookup needs the real slug, not personal")
 
 			return plans, plansErr
@@ -219,20 +223,35 @@ func TestRunCreateDefaultPlan(t *testing.T) {
 	}{
 		{name: "Free organization gets Developer", plans: free, want: "dev-256"},
 		{name: "paid organization keeps Basic", plans: paid, want: "basic"},
-		{name: "no usable plan is an error", plans: []flaps.ManagedPostgresPlan{{Plan: "future"}}, wantErr: "no Managed Postgres plans available for organization someone; pass --plan to choose"},
+		{name: "no plans is an error", wantErr: "no Managed Postgres plans available for organization someone"},
+		{name: "no usable plan is an error", plans: []flaps.ManagedPostgresPlan{{Plan: "future"}}, wantErr: "no Managed Postgres plans available for organization someone"},
 		{name: "failed lookup warns and uses Basic", plansErr: errors.New("lookup failed"), want: "basic", warns: true},
 		{name: "--plan skips the lookup", plansErr: errors.New("lookup failed"), args: []string{"--plan", "developer"}, want: "dev-256"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			req, stderr, err := createRequestWithPlans(t, tc.plans, tc.plansErr, tc.args...)
+			req, stderr, err := createRequestWithPlans(t, tc.plans, tc.plansErr, false, tc.args...)
 			if tc.wantErr == "" {
 				tc.wantErr = "stop after the create request"
 			}
 			require.ErrorContains(t, err, tc.wantErr)
+			if tc.want == "" {
+				assert.EqualError(t, err, tc.wantErr)
+				assert.NotContains(t, err.Error(), "--plan")
+			}
 			assert.Equal(t, tc.want, req.Plan)
 			assert.Equal(t, tc.warns, strings.Contains(stderr, warning), "stderr: %s", stderr)
 		})
 	}
+}
+
+func TestRunCreateInteractivePlanLookupFailure(t *testing.T) {
+	req, stderr, err := createRequestWithPlans(t, nil, errors.New("lookup failed"), true)
+	// The buffer streams cannot render Survey's prompt, so reaching Select
+	// returns ErrNonInteractive even though IsInteractive is true.
+	require.ErrorIs(t, err, prompt.ErrNonInteractive)
+	assert.Empty(t, req)
+	assert.NotContains(t, stderr, "Warning:")
+	assert.NotContains(t, stderr, "Defaulting to Basic")
 }
 
 // With a terminal, the prompt lists only the organization's plans, cheapest
