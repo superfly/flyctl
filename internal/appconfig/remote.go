@@ -50,15 +50,21 @@ func fallbackConfigForGroups(ctx context.Context, client flyutil.Client, appName
 		return recoverReleaseConfig(ctx, client, appName, groups[0], "there are no active Machines", releaseErr)
 	}
 
-	cfg, err := configFromActiveMachines(ctx, appName, activeMachines)
-	if err != nil || len(groups) == 0 {
-		return cfg, err
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	io := iostreams.FromContext(ctx)
+	machines := machine.NewMachineSet(flapsClient, io, appName, activeMachines, true)
+	cfg, warnings, err := FromAppAndMachineSet(ctx, appName, machines)
+	if err != nil {
+		return nil, fmt.Errorf("failed to grab app config from existing machines, error: %w", err)
 	}
 	names := cfg.ProcessNames()
 	for _, group := range groups {
 		if !slices.Contains(names, group) {
 			return recoverReleaseConfig(ctx, client, appName, group, fmt.Sprintf("the config reconstructed from Machines only lists %v", names), releaseErr)
 		}
+	}
+	if warnings != "" {
+		fmt.Fprintf(io.ErrOut, "WARNINGS:\n%s", warnings)
 	}
 
 	return cfg, nil
@@ -98,22 +104,6 @@ func transientReleaseError(err error) bool {
 	var netErr net.Error
 
 	return errors.As(err, &netErr) && netErr.Timeout()
-}
-
-func configFromActiveMachines(ctx context.Context, appName string, activeMachines []*fly.Machine) (*Config, error) {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	io := iostreams.FromContext(ctx)
-
-	machineSet := machine.NewMachineSet(flapsClient, io, appName, activeMachines, true)
-	appConfig, warnings, err := FromAppAndMachineSet(ctx, appName, machineSet)
-	if err != nil {
-		return nil, fmt.Errorf("failed to grab app config from existing machines, error: %w", err)
-	}
-	if warnings != "" {
-		fmt.Fprintf(io.ErrOut, "WARNINGS:\n%s", warnings)
-	}
-
-	return appConfig, nil
 }
 
 func getAppV2ConfigFromReleases(ctx context.Context, apiClient flyutil.Client, appName string) (*Config, error) {
