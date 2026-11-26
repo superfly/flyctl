@@ -131,6 +131,14 @@ func (md *machineDeployment) verifyFastReleaseExit(ctx context.Context, expected
 		if err := md.readReleaseHistory(ctx, path+"/events?limit=20", &full); err != nil {
 			return err
 		}
+		// Auto-destroy may have prepended these transitions since the versioned
+		// read. Keep the entire original snapshot for the comparison below.
+		for _, status := range []string{"destroyed", "destroying"} {
+			if len(full) > 0 && full[0].ID != "" && full[0].ID != recent[0].ID &&
+				full[0].Type == "destroy" && full[0].Status == status {
+				full = full[1:]
+			}
+		}
 		if len(full) < len(recent) {
 			return errors.New("incomplete Machine history")
 		}

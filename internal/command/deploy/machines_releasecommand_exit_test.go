@@ -56,6 +56,10 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 		{name: "truncated history verifies recovered create", status: 409, message: abrupt, historyMode: "complete", wantRead: true, wantFastExit: true, waitForDestroy: true},
 		{name: "truncated history verifies ordinary create", status: 409, message: abrupt, historyMode: "complete", ordinaryAnchor: true, wantRead: true, wantFastExit: true},
 		{name: "ordinary create anchors original pending launch", status: 409, message: abrupt, ordinaryAnchor: true, wantRead: true, wantFastExit: true},
+		{name: "destroy arrives between reads", status: 409, message: abrupt, historyMode: "new destroy", ordinaryAnchor: true, wantRead: true, wantFastExit: true},
+		{name: "both destroy events arrive between reads", status: 409, message: abrupt, historyMode: "both destroys", ordinaryAnchor: true, wantRead: true, wantFastExit: true},
+		{name: "new start between reads", status: 409, message: abrupt, historyMode: "new start", ordinaryAnchor: true, wantRead: true},
+		{name: "changed overlap after destroy", status: 409, message: abrupt, historyMode: "changed overlap", ordinaryAnchor: true, wantRead: true},
 		{name: "event history differs from versioned read", status: 409, message: abrupt, historyMode: "different prefix", wantRead: true},
 		{name: "event history contains other action before start", status: 409, message: abrupt, historyMode: "competing action", ordinaryAnchor: true, wantRead: true},
 		{name: "event history reorders ordinary creation", status: 409, message: abrupt, historyMode: "reordered creation", ordinaryAnchor: true, wantRead: true},
@@ -122,6 +126,20 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 				full.Events = append([]*fly.MachineEvent{destroyed, destroying, exit, start, starting}, fresh.Events[2:]...)
 				fresh.Events = full.Events[:5]
 				switch tc.historyMode {
+				case "new destroy", "changed overlap":
+					fresh.State = "destroying"
+					fresh.Events = append([]*fly.MachineEvent(nil), full.Events[1:6]...)
+					if tc.historyMode == "changed overlap" {
+						changed := *full.Events[2]
+						changed.Status = "failed"
+						full.Events[2] = &changed
+					}
+				case "both destroys", "new start":
+					fresh.State = fly.MachineStateStopped
+					fresh.Events = full.Events[2:7]
+					if tc.historyMode == "new start" {
+						full.Events[1] = &fly.MachineEvent{ID: "another-start", Type: "start", Status: "starting"}
+					}
 				case "different prefix":
 					full.Events = append([]*fly.MachineEvent(nil), full.Events...)
 					full.Events[0] = &fly.MachineEvent{ID: "different-destroy", Type: "destroy", Status: "destroyed", Timestamp: 500}
