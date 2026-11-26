@@ -68,7 +68,10 @@ func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 	}
 	waitingForFirstStart := false
 	for {
-		err := flapsClient.Wait(waitCtx, appName, machine.ID, waitOpts...)
+		err := waitCtx.Err()
+		if err == nil {
+			err = flapsClient.Wait(waitCtx, appName, machine.ID, waitOpts...)
+		}
 		if err == nil {
 			return waitOnAction, nil
 		}
@@ -113,7 +116,8 @@ func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			if terminalNotFound || (waitingForFirstStart && isFlapsError && flapsErr.ResponseStatusCode == http.StatusConflict) {
 				return "", err
 			}
-			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
+			replacing := action == "settled" && version != "" && isFlapsError && flapsErr.ResponseStatusCode == http.StatusRequestTimeout && strings.HasSuffix(flapsErr.Error(), ", currently replacing")
+			if !replacing && strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
 				if action != "start" || machine.Version == "" || !isFlapsError || flapsErr.ResponseStatusCode != http.StatusRequestTimeout ||
 					flapsErr.Error() != "deadline_exceeded: machine failed to reach desired state, started, currently created" {
 					return "", fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
@@ -127,7 +131,11 @@ func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			if isFlapsError && flapsErr.ResponseStatusCode == http.StatusBadRequest {
 				return "", fmt.Errorf("failed waiting for machine: %w", err)
 			}
-			time.Sleep(b.Duration())
+			select {
+			case <-waitCtx.Done():
+				// Let the existing cancellation and timeout paths report the outcome.
+			case <-time.After(b.Duration()):
+			}
 		}
 	}
 }

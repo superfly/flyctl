@@ -358,3 +358,43 @@ func TestWaitForUpdateVerifiesCurrentVersion(t *testing.T) {
 		})
 	}
 }
+
+const replacingPollMessage = "deadline_exceeded: machine failed to reach desired state, started,stopped,suspended,failed,destroyed,archived, currently replacing"
+
+func TestUpdateWaitAfterReplacingTimeout(t *testing.T) {
+	var waits, reads atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/v1/apps/app/machines/m1/wait":
+			if r.URL.Query().Get("version") != "accepted" || r.URL.Query().Get("state") != "settled" {
+				t.Errorf("unexpected wait query: %s", r.URL)
+			}
+			if waits.Add(1) == 1 {
+				w.WriteHeader(http.StatusRequestTimeout)
+				fmt.Fprintf(w, `{"error":%q}`, replacingPollMessage)
+				return
+			}
+			fmt.Fprint(w, `{}`)
+		case "/v1/apps/app/machines/m1":
+			state := "started"
+			if reads.Add(1) == 1 {
+				state = "replacing"
+			}
+			fmt.Fprintf(w, `{"instance_id":"accepted","state":%q}`, state)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("FLY_FLAPS_BASE_URL", server.URL)
+	client, err := flaps.NewWithOptions(t.Context(), flaps.NewClientOpts{Tokens: tokens.Parse("FlyV1 fake")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := &fly.Machine{ID: "m1", InstanceID: "accepted", Config: &fly.MachineConfig{Restart: &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}}}
+	m, err := waitForUpdate(flapsutil.NewContextWithClient(t.Context(), client), "app", &fly.Machine{Version: "previous"}, target, 3*time.Second)
+	if err != nil || m.State != "started" || waits.Load() != 3 || reads.Load() != 2 {
+		t.Fatalf("machine=%v waits=%d reads=%d err=%v", m, waits.Load(), reads.Load(), err)
+	}
+}
