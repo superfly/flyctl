@@ -30,6 +30,7 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 		mutate         func(*fly.Machine)
 		getStatus      int
 		historyMode    string
+		missingAnchor  bool
 		ordinaryAnchor bool
 		waitForDestroy bool
 		wireVersion    string
@@ -40,6 +41,7 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 		wantFastExit   bool
 	}{
 		{name: "successful start follows normal wait", status: 200},
+		{name: "missing pre-start observation", status: 409, message: abrupt, missingAnchor: true},
 		{name: "fast successful direct exit", status: 409, message: abrupt, wantRead: true, wantFastExit: true},
 		{name: "fast successful monitor exit", status: 409, message: abrupt, wantRead: true, monitorEvent: true, wantFastExit: true},
 		{name: "fast exit before started event", status: 409, message: abrupt, wantRead: true, wantFastExit: true, mutate: func(m *fly.Machine) { m.Events[1].Status = "starting" }},
@@ -107,6 +109,9 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 			}
 			fresh := expected
 			fresh.Events = []*fly.MachineEvent{exit, start, creation}
+			if tc.missingAnchor {
+				expected.Events = nil
+			}
 			if tc.ordinaryAnchor {
 				expected.Events = []*fly.MachineEvent{{ID: "pending", Type: "launch", Status: "pending", Timestamp: 75}}
 				fresh.Events = []*fly.MachineEvent{exit, start, {ID: "built", Type: "update", Status: "stopped", Timestamp: 120}, creation, expected.Events[0]}
@@ -202,9 +207,6 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 					Body: io.NopCloser(strings.NewReader(string(payload))), Request: r,
 				}, nil
 			})
-			originalTransport := http.DefaultTransport
-			http.DefaultTransport = transport
-			t.Cleanup(func() { http.DefaultTransport = originalTransport })
 			client, err := flaps.NewWithOptions(t.Context(), flaps.NewClientOpts{Transport: transport})
 			require.NoError(t, err)
 			md := machineDeployment{app: &flaps.App{Name: "test-app"}, flapsClient: client, releaseId: "fixture-release", waitTimeout: time.Second}

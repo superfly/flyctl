@@ -2,13 +2,9 @@ package deploy
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/internal/requestauth"
-	"github.com/superfly/flyctl/internal/tracing"
 	"net/http"
-	"net/url"
 	"slices"
 	"time"
 
@@ -78,20 +74,33 @@ func (e releaseHistoryEvent) successfulExit() bool {
 		!x.OOMKilled && !x.RequestedStop && !x.Restarting && x.Error == "" && x.GuestError == ""
 }
 
+type releaseHistoryReader interface {
+	GetMachineVersion(context.Context, string, string, string, any) error
+	GetMachineEvents(context.Context, string, string, int, any) error
+}
+
+var _ releaseHistoryReader = (*flaps.Client)(nil)
+
 func (md *machineDeployment) verifyFastReleaseExit(ctx context.Context, expected *fly.Machine) error {
 	if expected == nil || expected.ID == "" || expected.InstanceID == "" {
 		return errors.New("missing Machine or version")
 	}
+	if len(expected.Events) == 0 || expected.Events[0] == nil || expected.Events[0].ID == "" {
+		return errors.New("missing pre-start event identity")
+	}
+	reader, ok := md.flapsClient.(releaseHistoryReader)
+	if !ok {
+		return errors.New("client does not support release history reads")
+	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	path := "/apps/" + url.PathEscape(md.app.Name) + "/machines/" + url.PathEscape(expected.ID)
 	var receipt struct {
 		ID             string
 		InstanceID     string `json:"instance_id"`
 		Version, State string
 		Events         []releaseHistoryEvent
 	}
-	if err := md.readReleaseHistory(ctx, path+"?version="+url.QueryEscape(expected.InstanceID), &receipt); err != nil {
+	if err := reader.GetMachineVersion(ctx, md.app.Name, expected.ID, expected.InstanceID, &receipt); err != nil {
 		return err
 	}
 	if receipt.ID != expected.ID || receipt.InstanceID != expected.InstanceID || (receipt.Version != "" && receipt.Version != expected.InstanceID) {
@@ -113,13 +122,7 @@ func (md *machineDeployment) verifyFastReleaseExit(ctx context.Context, expected
 	if start.ID == "" || start.ID == events[0].ID || start.Type != "start" || (start.Status != "starting" && start.Status != "started") {
 		return errors.New("exit does not follow Start")
 	}
-	if len(expected.Events) == 0 {
-		return ctx.Err()
-	}
 	anchor := expected.Events[0]
-	if anchor == nil || anchor.ID == "" {
-		return errors.New("missing pre-start event identity")
-	}
 	// Destroy can push the pre-start event out of the five events returned by
 	// Get. Join the longer history to that versioned snapshot by immutable IDs.
 	recent := receipt.Events
@@ -128,7 +131,7 @@ func (md *machineDeployment) verifyFastReleaseExit(ctx context.Context, expected
 	}
 	if len(recent) == 5 && !slices.ContainsFunc(recent, matchesAnchor) {
 		var full []releaseHistoryEvent
-		if err := md.readReleaseHistory(ctx, path+"/events?limit=20", &full); err != nil {
+		if err := reader.GetMachineEvents(ctx, md.app.Name, expected.ID, 20, &full); err != nil {
 			return err
 		}
 		// Auto-destroy may have prepended these transitions since the versioned
@@ -168,22 +171,4 @@ func (md *machineDeployment) verifyFastReleaseExit(ctx context.Context, expected
 	}
 
 	return errors.New("Machine history does not match the pre-start observation")
-}
-
-func (md *machineDeployment) readReleaseHistory(ctx context.Context, path string, out any) error {
-	req, err := md.flapsClient.NewRequest(ctx, http.MethodGet, path, nil, nil)
-	if err != nil {
-		return err
-	}
-	client := http.Client{Transport: tracing.NewTransport(requestauth.Transport(nil)), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Machine lookup returned HTTP %d", resp.StatusCode)
-	}
-
-	return json.NewDecoder(resp.Body).Decode(out)
 }
