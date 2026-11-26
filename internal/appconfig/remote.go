@@ -102,8 +102,12 @@ func transientReleaseError(err error) bool {
 		}
 	}
 	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+	var temporary interface{ Temporary() bool }
 
-	return errors.As(err, &netErr) && netErr.Timeout()
+	return errors.As(err, &temporary) && temporary.Temporary()
 }
 
 func getAppV2ConfigFromReleases(ctx context.Context, apiClient flyutil.Client, appName string) (*Config, error) {
