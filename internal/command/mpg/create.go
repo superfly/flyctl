@@ -32,7 +32,8 @@ FLY_ORG), --region and --plan, or you're asked for them in a terminal. If
 your only organization is your personal one, it's used without asking.
 Without a terminal, --name and --region are required, so is --org unless
 FLY_ORG is set or you only have a personal organization, and the plan
-defaults to Basic.
+defaults to Basic if the organization can use it, otherwise to the cheapest
+plan the organization can use (for example, Developer for Free organizations).
 
 You can stop waiting with Ctrl+C; the cluster keeps provisioning. Then use
 ` + "`fly mpg status`" + ` to check on it and ` + "`fly mpg attach`" + ` to connect an app.`

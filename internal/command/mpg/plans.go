@@ -19,6 +19,9 @@ func availablePlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgre
 			plans = append(plans, flaps.ManagedPostgresPlan{Plan: key})
 		}
 	}
+	if len(plans) == 0 {
+		return nil, fmt.Errorf("no Managed Postgres plans available for organization %s", orgSlug)
+	}
 	known := make([]flaps.ManagedPostgresPlan, 0, len(plans))
 	for _, p := range plans {
 		if _, ok := MPGPlans[p.Plan]; ok {
@@ -27,7 +30,7 @@ func availablePlans(ctx context.Context, orgSlug string) ([]flaps.ManagedPostgre
 	}
 	plans = known
 	if len(plans) == 0 {
-		return nil, fmt.Errorf("no Managed Postgres plans available for organization %s", orgSlug)
+		return nil, fmt.Errorf("Managed Postgres plans for organization %s are not supported by this flyctl version; upgrade flyctl", orgSlug)
 	}
 
 	sort.Slice(plans, func(i, j int) bool { return MPGPlans[plans[i].Plan].PricePerMo < MPGPlans[plans[j].Plan].PricePerMo })

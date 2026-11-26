@@ -223,8 +223,8 @@ func TestRunCreateDefaultPlan(t *testing.T) {
 	}{
 		{name: "Free organization gets Developer", plans: free, want: "dev-256"},
 		{name: "paid organization keeps Basic", plans: paid, want: "basic"},
-		{name: "no plans is an error", wantErr: "no Managed Postgres plans available for organization someone"},
-		{name: "no usable plan is an error", plans: []flaps.ManagedPostgresPlan{{Plan: "future"}}, wantErr: "no Managed Postgres plans available for organization someone"},
+		{name: "empty plan list is an error", plans: []flaps.ManagedPostgresPlan{}, wantErr: "no Managed Postgres plans available for organization someone"},
+		{name: "unsupported plans suggest upgrading flyctl", plans: []flaps.ManagedPostgresPlan{{Plan: "future"}}, wantErr: "Managed Postgres plans for organization someone are not supported by this flyctl version; upgrade flyctl"},
 		{name: "failed lookup warns and uses Basic", plansErr: errors.New("lookup failed"), want: "basic", warns: true},
 		{name: "--plan skips the lookup", plansErr: errors.New("lookup failed"), args: []string{"--plan", "developer"}, want: "dev-256"},
 	} {
