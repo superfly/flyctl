@@ -176,5 +176,6 @@ func (md *machineDeployment) readReleaseHistory(ctx context.Context, path string
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Machine lookup returned HTTP %d", resp.StatusCode)
 	}
+
 	return json.NewDecoder(resp.Body).Decode(out)
 }

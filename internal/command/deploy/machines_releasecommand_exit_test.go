@@ -121,16 +121,17 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 				full = fresh
 				full.Events = append([]*fly.MachineEvent{destroyed, destroying, exit, start, starting}, fresh.Events[2:]...)
 				fresh.Events = full.Events[:5]
-				if tc.historyMode == "different prefix" {
+				switch tc.historyMode {
+				case "different prefix":
 					full.Events = append([]*fly.MachineEvent(nil), full.Events...)
 					full.Events[0] = &fly.MachineEvent{ID: "different-destroy", Type: "destroy", Status: "destroyed", Timestamp: 500}
-				} else if tc.historyMode == "competing action" {
+				case "competing action":
 					full.Events = append([]*fly.MachineEvent(nil), full.Events...)
 					full.Events[5] = &fly.MachineEvent{ID: "other-stop", Type: "stop", Status: "stopped", Timestamp: 120}
-				} else if tc.historyMode == "reordered creation" {
+				case "reordered creation":
 					full.Events = append([]*fly.MachineEvent(nil), full.Events...)
 					full.Events[5], full.Events[6] = full.Events[6], full.Events[5]
-				} else if tc.historyMode == "missing anchor" {
+				case "missing anchor":
 					full.Events = full.Events[:5]
 				}
 			}
@@ -177,6 +178,7 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 				if status == http.StatusTemporaryRedirect {
 					headers.Set("Location", "/unexpected-proof-redirect")
 				}
+
 				return &http.Response{
 					StatusCode: status, Header: headers,
 					Body: io.NopCloser(strings.NewReader(string(payload))), Request: r,
@@ -251,5 +253,6 @@ func fastExitWireMachine(t *testing.T, machine fly.Machine, version string, omit
 			request["MonitorEvent"] = map[string]any{"exit_event": exit}
 		}
 	}
+
 	return body
 }
