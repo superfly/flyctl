@@ -35,6 +35,7 @@ func (md *machineDeployment) finishReleaseCommandStart(ctx context.Context, expe
 	if err := md.verifyFastReleaseExit(ctx, expected); err != nil {
 		return false, fmt.Errorf("%w (could not verify release command exit: %v)", startErr, err)
 	}
+
 	return true, nil
 }
 
@@ -71,6 +72,7 @@ func (e releaseHistoryEvent) successfulExit() bool {
 		}
 		x = e.Request.Monitor.Exit
 	}
+
 	return x != nil && x.ExitCode != nil && *x.ExitCode == 0 && x.ExitedAt.UnixMilli() > 0 &&
 		(x.GuestExitCode == nil || *x.GuestExitCode == 0) && x.Signal <= 0 && x.GuestSignal <= 0 &&
 		!x.OOMKilled && !x.RequestedStop && !x.Restarting && x.Error == "" && x.GuestError == ""
@@ -156,6 +158,7 @@ func (md *machineDeployment) verifyFastReleaseExit(ctx context.Context, expected
 	if len(older) > 0 && matchesAnchor(older[0]) {
 		return ctx.Err()
 	}
+
 	return errors.New("Machine history does not match the pre-start observation")
 }
 

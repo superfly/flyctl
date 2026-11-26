@@ -248,6 +248,7 @@ func TestCreateReleaseCommandMachine(t *testing.T) {
 					payload, err = json.Marshal(body)
 					require.NoError(t, err)
 				}
+
 				return &http.Response{
 					StatusCode: status, Header: http.Header{"Fly-Request-Id": []string{"fixture-request"}},
 					Body: io.NopCloser(strings.NewReader(string(payload))), Request: r,

@@ -358,6 +358,7 @@ func (md *machineDeployment) findReleaseCommandMachine(ctx context.Context, atte
 				if err != nil || ctx.Err() != nil || !md.isUnstartedReleaseCommandMachine(candidate, fresh, attempt) {
 					return nil
 				}
+
 				return fresh
 			case fly.MachineStateCreated, "pending":
 				// The build is still preparing the skip-launch Machine.
@@ -371,6 +372,7 @@ func (md *machineDeployment) findReleaseCommandMachine(ctx context.Context, atte
 		case <-ticker.C:
 		}
 	}
+
 	return nil
 }
 
@@ -412,6 +414,7 @@ func (md *machineDeployment) startRecoveredReleaseCommandMachine(ctx context.Con
 	// only while there is time left on this lease, with room for clock skew.
 	leaseCtx, cancel := context.WithDeadline(ctx, time.Unix(lease.Data.ExpiresAt, 0).Add(-5*time.Second))
 	defer cancel()
+
 	return startReleaseCommandMachine(leaseCtx, func(ctx context.Context) error {
 		fresh, err := md.flapsClient.Get(ctx, appName, candidate.ID)
 		if err != nil {
@@ -438,6 +441,7 @@ func (md *machineDeployment) startRecoveredReleaseCommandMachine(ctx context.Con
 		if resp == nil || resp.PreviousState != fly.MachineStateStopped {
 			return fmt.Errorf("start did not confirm that recovered release_command machine %s was stopped", candidate.ID)
 		}
+
 		return nil
 	}, md.waitTimeout)
 }
@@ -577,6 +581,7 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
+
 	return md.waitForReleaseCommandDestroyed(ctx, releaseCmdMachine)
 }
 
@@ -604,5 +609,6 @@ func hasOnlyCreationEvents(events []*fly.MachineEvent) bool {
 		}
 		ids[e.ID] = true
 	}
+
 	return true
 }
