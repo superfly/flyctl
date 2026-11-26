@@ -57,14 +57,8 @@ For pricing, see https://docs.fly.io/about/pricing`
 func runScaleCount(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 
-	appConfig, err := appconfig.FromRemoteApp(ctx, appName)
-	if err != nil {
-		return err
-	}
-
 	args := flag.Args(ctx)
 
-	processNames := appConfig.ProcessNames()
 	groupName := flag.GetProcessGroup(ctx)
 
 	if groupName == "" {
@@ -76,7 +70,13 @@ func runScaleCount(ctx context.Context) error {
 		return err
 	}
 
-	unknownNames := lo.Filter(slices.Collect(maps.Keys(groups)), func(x string, _ int) bool {
+	requested := slices.Sorted(maps.Keys(groups))
+	appConfig, err := appconfig.FromRemoteAppForGroups(ctx, appName, requested)
+	if err != nil {
+		return err
+	}
+	processNames := appConfig.ProcessNames()
+	unknownNames := lo.Filter(requested, func(x string, _ int) bool {
 		return !slices.Contains(processNames, x)
 	})
 	if len(unknownNames) > 0 {
