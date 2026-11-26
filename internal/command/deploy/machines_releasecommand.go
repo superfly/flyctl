@@ -159,7 +159,11 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 		err = recoveredStart(ctx)
 	}
 	exitCode := 0
-	if !errors.Is(err, errVerifiedReleaseExit) {
+	if errors.Is(err, errVerifiedReleaseExit) {
+		if err = md.waitForReleaseCommandDestroyed(ctx, releaseCmdMachine); err != nil {
+			return err
+		}
+	} else {
 		if err != nil {
 			fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
 
@@ -573,7 +577,11 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	err = releaseCmdMachine.WaitForState(ctx, fly.MachineStateDestroyed, md.releaseCmdTimeout, machine.WithAllowInfinite(true))
+	return md.waitForReleaseCommandDestroyed(ctx, releaseCmdMachine)
+}
+
+func (md *machineDeployment) waitForReleaseCommandDestroyed(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
+	err := releaseCmdMachine.WaitForState(ctx, fly.MachineStateDestroyed, md.releaseCmdTimeout, machine.WithAllowInfinite(true))
 	if err != nil {
 		err = suggestChangeWaitTimeout(err, "release-command-timeout")
 

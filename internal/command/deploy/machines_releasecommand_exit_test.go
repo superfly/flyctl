@@ -12,6 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func TestFinishReleaseCommandStart(t *testing.T) {
@@ -21,17 +24,20 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 		machineID    = "release-fixture"
 	)
 	for _, tc := range []struct {
-		name         string
-		status       int
-		message      string
-		mutate       func(*fly.Machine)
-		getStatus    int
-		wireVersion  string
-		omitExitCode bool
-		nullExitCode bool
-		monitorEvent bool
-		wantRead     bool
-		wantFastExit bool
+		name           string
+		status         int
+		message        string
+		mutate         func(*fly.Machine)
+		getStatus      int
+		historyMode    string
+		ordinaryAnchor bool
+		waitForDestroy bool
+		wireVersion    string
+		omitExitCode   bool
+		nullExitCode   bool
+		monitorEvent   bool
+		wantRead       bool
+		wantFastExit   bool
 	}{
 		{name: "successful start follows normal wait", status: 200},
 		{name: "fast successful direct exit", status: 409, message: abrupt, wantRead: true, wantFastExit: true},
@@ -47,6 +53,13 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 		{name: "active state contradicts exit history", status: 409, message: abrupt, wantRead: true, mutate: func(m *fly.Machine) {
 			m.State = fly.MachineStateStarted
 		}},
+		{name: "truncated history verifies recovered create", status: 409, message: abrupt, historyMode: "complete", wantRead: true, wantFastExit: true, waitForDestroy: true},
+		{name: "truncated history verifies ordinary create", status: 409, message: abrupt, historyMode: "complete", ordinaryAnchor: true, wantRead: true, wantFastExit: true},
+		{name: "ordinary create anchors original pending launch", status: 409, message: abrupt, ordinaryAnchor: true, wantRead: true, wantFastExit: true},
+		{name: "event history differs from versioned read", status: 409, message: abrupt, historyMode: "different prefix", wantRead: true},
+		{name: "event history contains other action before start", status: 409, message: abrupt, historyMode: "competing action", ordinaryAnchor: true, wantRead: true},
+		{name: "event history reorders ordinary creation", status: 409, message: abrupt, historyMode: "reordered creation", ordinaryAnchor: true, wantRead: true},
+		{name: "event history does not include creation anchor", status: 409, message: abrupt, historyMode: "missing anchor", wantRead: true},
 		{name: "mismatched version alias", status: 409, message: abrupt, wireVersion: "wrong-version", wantRead: true},
 		{name: "matching version alias", status: 409, message: abrupt, wireVersion: "release-version", wantRead: true, wantFastExit: true},
 		{name: "ordinary conflict", status: 409, message: "lease currently held"},
@@ -90,6 +103,37 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 			}
 			fresh := expected
 			fresh.Events = []*fly.MachineEvent{exit, start, creation}
+			if tc.ordinaryAnchor {
+				expected.Events = []*fly.MachineEvent{{ID: "pending", Type: "launch", Status: "pending", Timestamp: 75}}
+				fresh.Events = []*fly.MachineEvent{exit, start, {ID: "built", Type: "update", Status: "stopped", Timestamp: 120}, creation, expected.Events[0]}
+			}
+			if tc.historyMode != "" && !tc.ordinaryAnchor {
+				built := &fly.MachineEvent{ID: "built", Type: "update", Status: "stopped", Timestamp: 120}
+				expected.Events = []*fly.MachineEvent{built, creation}
+				fresh.Events = []*fly.MachineEvent{exit, start, built, creation}
+			}
+			full := fresh
+			if tc.historyMode != "" {
+				starting := &fly.MachineEvent{ID: "starting", Type: "start", Status: "starting", Timestamp: 150}
+				destroying := &fly.MachineEvent{ID: "destroying", Type: "destroy", Status: "destroying", Timestamp: 400}
+				destroyed := &fly.MachineEvent{ID: "destroyed", Type: "destroy", Status: "destroyed", Timestamp: 500}
+				fresh.State = fly.MachineStateDestroyed
+				full = fresh
+				full.Events = append([]*fly.MachineEvent{destroyed, destroying, exit, start, starting}, fresh.Events[2:]...)
+				fresh.Events = full.Events[:5]
+				if tc.historyMode == "different prefix" {
+					full.Events = append([]*fly.MachineEvent(nil), full.Events...)
+					full.Events[0] = &fly.MachineEvent{ID: "different-destroy", Type: "destroy", Status: "destroyed", Timestamp: 500}
+				} else if tc.historyMode == "competing action" {
+					full.Events = append([]*fly.MachineEvent(nil), full.Events...)
+					full.Events[5] = &fly.MachineEvent{ID: "other-stop", Type: "stop", Status: "stopped", Timestamp: 120}
+				} else if tc.historyMode == "reordered creation" {
+					full.Events = append([]*fly.MachineEvent(nil), full.Events...)
+					full.Events[5], full.Events[6] = full.Events[6], full.Events[5]
+				} else if tc.historyMode == "missing anchor" {
+					full.Events = full.Events[:5]
+				}
+			}
 			if tc.mutate != nil {
 				tc.mutate(&fresh)
 			}
@@ -108,12 +152,22 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 					}
 				case "GET " + machinesPath + "/" + machineID:
 					calls = append(calls, "get")
+					require.Equal(t, expected.InstanceID, r.URL.Query().Get("version"))
 					if tc.getStatus != 0 {
 						status = tc.getStatus
 						body = map[string]string{"error": "machine not found"}
 					} else {
 						body = fastExitWireMachine(t, fresh, tc.wireVersion, tc.omitExitCode, tc.nullExitCode, tc.monitorEvent)
 					}
+				case "GET " + machinesPath + "/" + machineID + "/events":
+					calls = append(calls, "events")
+					require.Equal(t, "20", r.URL.Query().Get("limit"))
+					body = fastExitWireMachine(t, full, tc.wireVersion, tc.omitExitCode, tc.nullExitCode, tc.monitorEvent)["events"]
+				case "GET " + machinesPath + "/" + machineID + "/wait":
+					calls = append(calls, "wait-destroyed")
+					require.Equal(t, fly.MachineStateDestroyed, r.URL.Query().Get("state"))
+					status = http.StatusNotFound
+					body = map[string]string{"error": "machine not found"}
 				default:
 					t.Fatalf("unexpected Machines API request %s %s", r.Method, r.URL)
 				}
@@ -145,11 +199,24 @@ func TestFinishReleaseCommandStart(t *testing.T) {
 			} else {
 				require.ErrorIs(t, err, startErr)
 			}
+			wantCalls := []string{"start"}
 			if tc.wantRead {
-				require.Equal(t, []string{"start", "get"}, calls)
-			} else {
-				require.Equal(t, []string{"start"}, calls)
+				wantCalls = append(wantCalls, "get")
 			}
+			if tc.historyMode != "" {
+				wantCalls = append(wantCalls, "events")
+			}
+			if tc.waitForDestroy {
+				ios, _, _, _ := iostreams.Test()
+				ctx, cleanup := statuslogger.SingleLine(iostreams.NewContext(ctx, ios), false)
+				defer cleanup(false)
+				md.releaseCommandMachine = machine.NewMachineSet(client, ios, md.app.Name, []*fly.Machine{&expected}, false)
+				lm := md.releaseCommandMachine.GetMachines()[0]
+				require.NoError(t, md.waitForReleaseCommandDestroyed(ctx, lm))
+				require.True(t, md.releaseCommandMachine.IsEmpty())
+				wantCalls = append(wantCalls, "wait-destroyed")
+			}
+			require.Equal(t, wantCalls, calls)
 		})
 	}
 }
