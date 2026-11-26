@@ -42,34 +42,49 @@ func FromRemoteAppForGroups(ctx context.Context, appName string, groups []string
 }
 
 func fallbackConfigForGroups(ctx context.Context, client flyutil.Client, appName string, groups []string, releaseErr error) (*Config, error) {
-	cfg, err := getAppV2ConfigFromMachines(ctx, appName)
+	activeMachines, err := machine.ListActive(ctx, appName)
+	if err != nil {
+		return nil, fmt.Errorf("error listing active machines for %s app: %w", appName, err)
+	}
+	if len(groups) > 0 && len(activeMachines) == 0 && transientReleaseError(releaseErr) {
+		return recoverReleaseConfig(ctx, client, appName, groups[0], "there are no active Machines", releaseErr)
+	}
+
+	cfg, err := configFromActiveMachines(ctx, appName, activeMachines)
 	if err != nil || len(groups) == 0 {
 		return cfg, err
 	}
 	names := cfg.ProcessNames()
 	for _, group := range groups {
-		if slices.Contains(names, group) {
-			continue
+		if !slices.Contains(names, group) {
+			return recoverReleaseConfig(ctx, client, appName, group, fmt.Sprintf("the config reconstructed from Machines only lists %v", names), releaseErr)
 		}
-		if ctx.Err() == nil && transientReleaseError(releaseErr) {
-			// Limit recovery to one read, including transport-level retries.
-			cfg, releaseErr = getAppV2ConfigFromReleases(fly.WithoutHTTPRetries(ctx), client, appName)
-			if cfg != nil && releaseErr == nil {
-				return cfg, nil
-			}
-		}
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		reason := "the release has no stored config"
-		if releaseErr != nil {
-			reason = "the release config could not be loaded"
-		}
-
-		return nil, fmt.Errorf("could not verify process group %q: %s and the config reconstructed from Machines only lists %v", group, reason, names)
 	}
 
 	return cfg, nil
+}
+
+func recoverReleaseConfig(ctx context.Context, client flyutil.Client, appName, group, fallbackReason string, releaseErr error) (*Config, error) {
+	if ctx.Err() == nil && transientReleaseError(releaseErr) {
+		var cfg *Config
+		cfg, releaseErr = getAppV2ConfigFromReleases(fly.WithoutHTTPRetries(ctx), client, appName)
+		if cfg != nil && releaseErr == nil {
+			return cfg, nil
+		}
+	}
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	reason := "the release has no stored config"
+	if releaseErr != nil {
+		reason = "the release config could not be loaded"
+		var httpErr *graphql.HTTPError
+		if errors.As(releaseErr, &httpErr) {
+			reason = fmt.Sprintf("the release lookup returned HTTP %d", httpErr.StatusCode)
+		}
+	}
+
+	return nil, fmt.Errorf("could not verify process group %q: %s and %s", group, reason, fallbackReason)
 }
 
 func transientReleaseError(err error) bool {
@@ -85,14 +100,10 @@ func transientReleaseError(err error) bool {
 	return errors.As(err, &netErr) && netErr.Timeout()
 }
 
-func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, error) {
+func configFromActiveMachines(ctx context.Context, appName string, activeMachines []*fly.Machine) (*Config, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
-	activeMachines, err := machine.ListActive(ctx, appName)
-	if err != nil {
-		return nil, fmt.Errorf("error listing active machines for %s app: %w", appName, err)
-	}
 	machineSet := machine.NewMachineSet(flapsClient, io, appName, activeMachines, true)
 	appConfig, warnings, err := FromAppAndMachineSet(ctx, appName, machineSet)
 	if err != nil {

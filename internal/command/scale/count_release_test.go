@@ -32,16 +32,19 @@ func TestScaleCountReleaseFallback(t *testing.T) {
 		body        string
 		retryBody   string
 		wantErr     string
+		empty       bool
 	}{
-		{"temporary failure recovers", "replicas", 503, "{}", valid, ""},
-		{"older app uses reconstructed group", "app", 200, missing, "", ""},
-		{"older app cannot verify named group", "replicas", 200, missing, "", "could not verify"},
-		{"release confirms unknown group", "worker", 200, valid, "", "unknown process groups"},
-		{"retry confirms unknown group", "worker", 503, "{}", valid, "unknown process groups"},
-		{"permission failure is not retried", "replicas", 403, "{}", "", "could not verify"},
-		{"malformed definition is not retried", "replicas", 200, `{"data":{"app":{"currentReleaseUnprocessed":{"configDefinition":"invalid"}}}}`, "", "could not verify"},
-		{"temporary failure with usable reconstruction", "app", 503, "{}", "", ""},
-		{"retry still missing", "replicas", 503, "{}", missing, "could not verify"},
+		{"temporary failure recovers", "replicas", 500, "{}", valid, "", false},
+		{"older app uses reconstructed group", "app", 200, missing, "", "", false},
+		{"older app cannot verify named group", "replicas", 200, missing, "", "could not verify", false},
+		{"release confirms unknown group", "worker", 200, valid, "", "unknown process groups", false},
+		{"retry confirms unknown group", "worker", 500, "{}", valid, "unknown process groups", false},
+		{"permission failure is not retried", "replicas", 403, "{}", "", "HTTP 403", false},
+		{"malformed definition is not retried", "replicas", 200, `{"data":{"app":{"currentReleaseUnprocessed":{"configDefinition":"invalid"}}}}`, "", "could not verify", false},
+		{"temporary failure with usable reconstruction", "app", 500, "{}", "", "", false},
+		{"retry still missing", "replicas", 500, "{}", missing, "could not verify", false},
+		{"empty app recovers release", "worker", 500, "{}", valid, "unknown process groups", true},
+		{"empty app exhausts transport retries", "replicas", 503, "{}", "", "HTTP 503", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			streams, _, out, _ := iostreams.Test()
@@ -53,7 +56,7 @@ func TestScaleCountReleaseFallback(t *testing.T) {
 			transport := releaseTransport(func(r *http.Request) (*http.Response, error) {
 				requests++
 				status, body := tc.status, tc.body
-				if requests > 1 {
+				if requests > 1 && tc.status != http.StatusServiceUnavailable {
 					require.Equal(t, 2, requests)
 					require.NotEmpty(t, tc.retryBody)
 					status, body = 200, tc.retryBody
@@ -62,8 +65,11 @@ func TestScaleCountReleaseFallback(t *testing.T) {
 				return &http.Response{StatusCode: status, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 			})
 			client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{BaseURL: "https://example.invalid", Transport: &fly.Transport{UnderlyingTransport: transport}})
-			ctx = fly.WithoutHTTPRetries(flyutil.NewContextWithClient(ctx, client))
+			ctx = flyutil.NewContextWithClient(ctx, client)
 			ms := []*fly.Machine{{ID: "synthetic", State: "started", Region: "iad", Config: &fly.MachineConfig{Metadata: map[string]string{"fly_process_group": tc.group}}}}
+			if tc.empty {
+				ms = nil
+			}
 			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
 				ListFunc: func(context.Context, string, string) ([]*fly.Machine, error) { return ms, nil },
 				ListFlyAppsMachinesFunc: func(context.Context, string) ([]*fly.Machine, *fly.Machine, error) {
@@ -85,6 +91,10 @@ func TestScaleCountReleaseFallback(t *testing.T) {
 			wantCalls := 1
 			if tc.retryBody != "" {
 				wantCalls++
+			}
+			if tc.status == http.StatusServiceUnavailable {
+				// Four attempts on the initial lookup and exactly one on recovery.
+				wantCalls = 5
 			}
 			require.Equal(t, wantCalls, requests)
 		})
