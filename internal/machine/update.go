@@ -124,24 +124,50 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 	return nil
 }
 
+// Older Flaps responses expose the version only as instance_id.
+func updateVersion(m *fly.Machine) string {
+	if m.Version != "" {
+		return m.Version
+	}
+	return m.InstanceID
+}
+
 // waitForUpdate waits for the accepted update's version to settle and verifies
 // that it is still the current version.
 func waitForUpdate(ctx context.Context, appName string, previous, target *fly.Machine, timeout time.Duration) (*fly.Machine, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	_, waitErr := waitForStartOrStop(ctx, appName, target, "settled", timeout, "", target.Version)
-	current, err := VerifyUpdateApplied(ctx, flapsutil.ClientFromContext(ctx), appName, previous, target, waitErr)
-	if err != nil {
-		return nil, fmt.Errorf("error while waiting for machine to update: %w", err)
+	version := updateVersion(target)
+	if version == "" {
+		return nil, fmt.Errorf("cannot confirm update of machine %s: update response omitted version", target.ID)
 	}
-
-	return current, nil
+	client := flapsutil.ClientFromContext(ctx)
+	for {
+		_, waitErr := waitForStartOrStop(ctx, appName, target, "settled", timeout, "", version)
+		current, err := VerifyUpdateApplied(ctx, client, appName, previous, target, waitErr)
+		if err != nil {
+			return nil, fmt.Errorf("error while waiting for machine to update: %w", err)
+		}
+		switch current.State {
+		case "started", "stopped", "suspended", "destroying", "destroyed", "archived":
+			return current, nil
+		}
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return nil, WaitTimeoutErr{machineID: target.ID, timeout: timeout, desiredState: "settled"}
+			}
+			return nil, ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+		}
+	}
 }
 
 // VerifyUpdateApplied checks the current version after a successful wait or
 // when the pinned version disappeared or entered a terminal state. The caller
 // supplies the same deadline used for the state wait.
 func VerifyUpdateApplied(ctx context.Context, client flapsutil.FlapsClient, appName string, previous, target *fly.Machine, waitErr error) (*fly.Machine, error) {
+	version := updateVersion(target)
 	if waitErr != nil && !isTerminalVersionWaitError(waitErr) {
 		return nil, waitErr
 	}
@@ -149,7 +175,7 @@ func VerifyUpdateApplied(ctx context.Context, client flapsutil.FlapsClient, appN
 	for {
 		if err := ctx.Err(); err != nil {
 			if errors.Is(err, context.DeadlineExceeded) && waitErr == nil {
-				return nil, fmt.Errorf("could not confirm promotion of machine %s to version %s: %w", target.ID, target.Version, err)
+				return nil, fmt.Errorf("could not confirm promotion of machine %s to version %s: %w", target.ID, version, err)
 			}
 			if waitErr != nil {
 				return nil, waitErr
@@ -168,8 +194,9 @@ func VerifyUpdateApplied(ctx context.Context, client flapsutil.FlapsClient, appN
 
 			return nil, fmt.Errorf("failed to get machine %s after update: %w", target.ID, err)
 		}
-		switch current.Version {
-		case target.Version:
+		currentVersion := updateVersion(current)
+		switch currentVersion {
+		case version:
 			if current.State == "failed" {
 				return nil, fmt.Errorf("machine %s update failed: machine entered %q state", target.ID, current.State)
 			}
@@ -178,7 +205,7 @@ func VerifyUpdateApplied(ctx context.Context, client flapsutil.FlapsClient, appN
 			}
 
 			return current, nil
-		case previous.Version:
+		case updateVersion(previous):
 			// A candidate can reach stopped before flyd promotes it. Probe the
 			// candidate's failed state because a settled wait also accepts failed.
 			if waitErr != nil {
@@ -187,7 +214,7 @@ func VerifyUpdateApplied(ctx context.Context, client flapsutil.FlapsClient, appN
 				}
 			} else {
 				probeErr := client.Wait(ctx, appName, target.ID,
-					flaps.WithWaitVersion(target.Version), flaps.WithWaitStates("failed"), flaps.WithWaitTimeout(time.Second))
+					flaps.WithWaitVersion(version), flaps.WithWaitStates("failed"), flaps.WithWaitTimeout(time.Second))
 				if isTerminalVersionWaitError(probeErr) {
 					return nil, probeErr
 				}
@@ -200,9 +227,9 @@ func VerifyUpdateApplied(ctx context.Context, client flapsutil.FlapsClient, appN
 				}
 			}
 
-			return nil, fmt.Errorf("machine %s update failed: machine remains on previous version %s (state: %s)", target.ID, current.Version, current.State)
+			return nil, fmt.Errorf("machine %s update failed: machine remains on previous version %s (state: %s)", target.ID, currentVersion, current.State)
 		default:
-			return nil, fmt.Errorf("machine %s update was superseded: expected version %s, found %s (state: %s)", target.ID, target.Version, current.Version, current.State)
+			return nil, fmt.Errorf("machine %s update was superseded: expected version %s, found %s (state: %s)", target.ID, version, currentVersion, current.State)
 		}
 	}
 }

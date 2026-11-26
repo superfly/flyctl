@@ -33,7 +33,7 @@ func TestRunUpdateErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			source := &fly.Machine{ID: "target", State: "stopped", Region: "ord", HostStatus: fly.HostStatusOk, Config: &fly.MachineConfig{Image: "example/image:latest", Guest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 256}}}
+			source := &fly.Machine{ID: "target", Version: "fixture-version", State: "stopped", Region: "ord", HostStatus: fly.HostStatusOk, Config: &fly.MachineConfig{Image: "example/image:latest", Guest: &fly.MachineGuest{CPUKind: "shared", CPUs: 1, MemoryMB: 256}}}
 			if tt.storedCPUs != 0 {
 				source.Config.Guest.CPUs = tt.storedCPUs
 				source.Config.Guest.MemoryMB = 2048
