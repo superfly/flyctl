@@ -124,7 +124,7 @@ func Update(ctx context.Context, appName string, m *fly.Machine, input *fly.Laun
 	return nil
 }
 
-// Flaps exposes the Machine version as instance_id on public API responses.
+// Older Flaps responses expose the version only as instance_id.
 func updateVersion(m *fly.Machine) string {
 	if m.Version != "" {
 		return m.Version

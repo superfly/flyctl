@@ -116,8 +116,8 @@ func waitForStartOrStop(ctx context.Context, appName string, machine *fly.Machin
 			if terminalNotFound || (waitingForFirstStart && isFlapsError && flapsErr.ResponseStatusCode == http.StatusConflict) {
 				return "", err
 			}
-			replacing := action == "settled" && version != "" && isFlapsError && flapsErr.ResponseStatusCode == http.StatusRequestTimeout && strings.HasSuffix(flapsErr.Error(), ", currently replacing")
-			if !replacing && strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
+			// A settled wait accepts stopped and failed, so a poll timeout only means the version is still in transition.
+			if action != "settled" && strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config != nil && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
 				if action != "start" || machine.Version == "" || !isFlapsError || flapsErr.ResponseStatusCode != http.StatusRequestTimeout ||
 					flapsErr.Error() != "deadline_exceeded: machine failed to reach desired state, started, currently created" {
 					return "", fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)

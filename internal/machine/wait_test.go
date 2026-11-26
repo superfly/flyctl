@@ -359,7 +359,8 @@ func TestWaitForUpdateVerifiesCurrentVersion(t *testing.T) {
 	}
 }
 
-const replacingPollMessage = "deadline_exceeded: machine failed to reach desired state, started,stopped,suspended,failed,destroyed,archived, currently replacing"
+// flyd reports the pinned version's own state, which is pending while the old version is replacing.
+const replacingPollMessage = "deadline_exceeded: machine failed to reach desired state, started,stopped,suspended,failed,destroyed,archived, currently pending"
 
 func TestUpdateWaitAfterReplacingTimeout(t *testing.T) {
 	var waits, reads atomic.Int32
