@@ -36,7 +36,9 @@ func Finish() {
 		return
 	}
 
-	err = os.WriteFile(har.Path, harJson, 0644)
+	// HAR archives record request headers, including Authorization
+	// bearer tokens, so keep the file readable only by its owner.
+	err = os.WriteFile(har.Path, harJson, 0600)
 	if err != nil {
 		terminal.Warnf("error writing HAR: %v\n", err)
 	}
