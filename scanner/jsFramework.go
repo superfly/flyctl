@@ -115,8 +115,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		Callback: JsFrameworkCallback,
 	}
 
-	_, err = os.Stat("bun.lockb")
-	if errors.Is(err, fs.ErrNotExist) {
+	if detectJSPackageManager(sourceDir, packageJson) != "bun" {
 		// ensure node is in $PATH
 		node, err := exec.LookPath("node")
 		if err != nil && !errors.Is(err, exec.ErrDot) {
@@ -345,40 +344,12 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			flags = append([]string{"--skip"}, flags...)
 		}
 
-		_, err = os.Stat("node_modules")
-		if errors.Is(err, fs.ErrNotExist) {
-			// no existing node_modules directory: run package directly
-			args = []string{"npx", "--yes", "@flydotio/dockerfile@latest"}
-
-			// add additional flags from launch command
-			if len(flags) > 0 {
-				args = append(args, flags...)
-			}
-		} else {
-			// build command to install package using preferred package manager
-			args = []string{"npm", "install", "@flydotio/dockerfile@latest", "--save-dev"}
-
-			_, err = os.Stat("yarn.lock")
-			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"yarn", "add", "@flydotio/dockerfile@latest", "--dev"}
-			}
-
-			_, err = os.Stat("pnpm-lock.yaml")
-			if !errors.Is(err, fs.ErrNotExist) {
-
-				_, err = os.Stat("pnpm-workspace.yaml")
-				if errors.Is(err, fs.ErrNotExist) {
-					args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
-				} else {
-					args = []string{"pnpm", "add", "-w", "-D", "@flydotio/dockerfile@latest"}
-				}
-			}
-
-			_, err = os.Stat("bun.lockb")
-			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"bun", "add", "-d", "@flydotio/dockerfile@latest"}
-			}
+		cwd, err := os.Getwd()
+		if err != nil {
+			cwd = "."
 		}
+
+		args = buildDockerfileInstallArgs(cwd, packageJson, flags)
 
 		// check first to see if the package is already installed
 		installed := false
@@ -502,4 +473,86 @@ Now: run 'fly deploy' to deploy your %s app.
 	}
 
 	return nil
+}
+
+func findFileUpwards(startDir string, filenames ...string) string {
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		dir = startDir
+	}
+
+	for {
+		for _, name := range filenames {
+			candidate := filepath.Join(dir, name)
+			if _, err := os.Stat(candidate); err == nil {
+				return candidate
+			}
+		}
+
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return ""
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+func detectJSPackageManager(dir string, pkgJSON map[string]any) string {
+	if rawPM, ok := pkgJSON["packageManager"].(string); ok && rawPM != "" {
+		name, _, _ := strings.Cut(strings.TrimSpace(rawPM), "@")
+		switch name {
+		case "bun", "pnpm", "yarn", "npm":
+			return name
+		}
+	}
+
+	if findFileUpwards(dir, "bun.lock", "bun.lockb") != "" {
+		return "bun"
+	}
+	if findFileUpwards(dir, "pnpm-lock.yaml") != "" {
+		return "pnpm"
+	}
+	if findFileUpwards(dir, "yarn.lock") != "" {
+		return "yarn"
+	}
+	if findFileUpwards(dir, "package-lock.json") != "" {
+		return "npm"
+	}
+
+	return "npm"
+}
+
+func buildDockerfileInstallArgs(dir string, pkgJSON map[string]any, flags []string) []string {
+	pm := detectJSPackageManager(dir, pkgJSON)
+
+	if findFileUpwards(dir, "node_modules") == "" {
+		var args []string
+		if pm == "bun" {
+			args = []string{"bunx", "@flydotio/dockerfile@latest"}
+		} else {
+			args = []string{"npx", "--yes", "@flydotio/dockerfile@latest"}
+		}
+		if len(flags) > 0 {
+			args = append(args, flags...)
+		}
+		return args
+	}
+
+	switch pm {
+	case "bun":
+		return []string{"bun", "add", "-d", "@flydotio/dockerfile@latest"}
+	case "pnpm":
+		if _, err := os.Stat(filepath.Join(dir, "pnpm-workspace.yaml")); err == nil {
+			return []string{"pnpm", "add", "-w", "-D", "@flydotio/dockerfile@latest"}
+		}
+		return []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+	case "yarn":
+		return []string{"yarn", "add", "@flydotio/dockerfile@latest", "--dev"}
+	default:
+		return []string{"npm", "install", "@flydotio/dockerfile@latest", "--save-dev"}
+	}
 }
