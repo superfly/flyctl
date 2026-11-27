@@ -234,6 +234,10 @@ func (state *launchState) Launch(ctx context.Context) (err error) {
 		}
 	}
 
+	if state.databasePort != 0 && state.appConfig.HTTPService == nil && len(state.appConfig.Services) == 0 {
+		fmt.Fprint(io.Out, "\n"+databaseImageNote(state.Plan.AppName, flag.GetString(ctx, "image"), state.databasePort, flag.GetString(ctx, "command") != "", flag.GetBool(ctx, "flycast")))
+	}
+
 	return nil
 }
 

@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/launchdarkly"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/internal/uiex"
@@ -76,6 +77,7 @@ type planBuildCache struct {
 	appNameValidated bool
 	warnedNoCcHa     bool // true => We have already warned that deploying ha is impossible for an org with no payment method
 	billingChecked   bool // true => buildManifest ran checkBillingStatus; manifests loaded with --from-manifest haven't been checked
+	databasePort     int
 }
 
 // managedPostgresEnabled reads the feature flag that lets launch default to
@@ -334,6 +336,17 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		lp.Runtime = srcInfo.Runtime
 	}
 
+	if image := flag.GetString(ctx, "image"); image != "" && !copiedConfig && flag.GetInt(ctx, "internal-port") <= 0 {
+		if ports, err := imageExposedPorts(ctx, image); err != nil {
+			if l := logger.MaybeFromContext(ctx); l != nil {
+				l.Debugf("can't read the ports image %s exposes, so it gets port %d: %v", image, lp.HttpServicePort, err)
+			}
+			fmt.Fprint(iostreams.FromContext(ctx).ErrOut, imageLookupWarning(image, lp.HttpServicePort, err))
+		} else {
+			lp.HttpServicePort, buildCache.databasePort = imageServicePort(ports, lp.HttpServicePort)
+		}
+	}
+
 	appConfig.AppName = lp.AppName
 
 	return &LaunchManifest{
@@ -418,11 +431,13 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		copiedConfig     bool
 		warnedNoCcHa     bool
 		appNameValidated bool
+		databasePort     int
 	)
 	if optionalCache != nil {
 		appConfig = optionalCache.appConfig
 		warnedNoCcHa = optionalCache.warnedNoCcHa
 		appNameValidated = optionalCache.appNameValidated
+		databasePort = optionalCache.databasePort
 	} else {
 		appConfig, copiedConfig, err = determineBaseAppConfig(ctx)
 		if err != nil {
@@ -511,6 +526,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 			appConfig:    appConfig,
 			sourceInfo:   srcInfo,
 			warnedNoCcHa: warnedNoCcHa,
+			databasePort: databasePort,
 		},
 		cache: map[string]any{},
 	}, nil

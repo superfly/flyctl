@@ -202,6 +202,10 @@ func newBuildManifestCtx(t *testing.T) context.Context {
 	require.NoError(t, flags.Set("image", "nginx:alpine"))
 	require.NoError(t, flags.Set("path", t.TempDir()))
 
+	prev := imageExposedPorts
+	imageExposedPorts = func(context.Context, string) ([]int, error) { return nil, errors.New("no registry in tests") }
+	t.Cleanup(func() { imageExposedPorts = prev })
+
 	return flagctx.NewContext(ctx, flags)
 }
 
