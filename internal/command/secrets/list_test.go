@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -148,6 +149,36 @@ func TestComputeSecretStatus_UnknownScenarios(t *testing.T) {
 	releases := map[string]time.Time{"100": now}
 	vcWithRelease := buildVersionCounts(machineWithRelease, releases)
 	assert.Equal(t, StatusUnknown, computeSecretStatus(fly.AppSecret{Name: "X", Digest: "d"}, vcWithRelease))
+}
+
+func TestSecretWithStatusJSON_Timestamps(t *testing.T) {
+	createdAt := "2024-01-01T10:00:00Z"
+	updatedAt := "2024-01-02T11:30:00Z"
+
+	withDates, err := json.Marshal(SecretWithStatus{
+		Name:      "MY_SECRET",
+		Digest:    "digest",
+		Status:    StatusDeployed,
+		CreatedAt: &createdAt,
+		UpdatedAt: &updatedAt,
+	})
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{
+		"name": "MY_SECRET",
+		"digest": "digest",
+		"status": "Deployed",
+		"created_at": "2024-01-01T10:00:00Z",
+		"updated_at": "2024-01-02T11:30:00Z"
+	}`, string(withDates))
+
+	// Missing timestamps are omitted rather than emitted as null.
+	withoutDates, err := json.Marshal(SecretWithStatus{
+		Name:   "MY_SECRET",
+		Digest: "digest",
+		Status: StatusUnknown,
+	})
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"name": "MY_SECRET", "digest": "digest", "status": "Unknown"}`, string(withoutDates))
 }
 
 func TestFilterRelevantMachines(t *testing.T) {
