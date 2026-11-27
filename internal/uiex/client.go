@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/superfly/client-signals/go"
 	"github.com/superfly/fly-go"
@@ -16,6 +17,8 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/propagation"
 )
+
+const defaultHTTPTimeout = 30 * time.Second
 
 type Client struct {
 	baseUrl    *url.URL
@@ -42,6 +45,10 @@ type NewClientOpts struct {
 	// optional; if non-nil, attaches the Fly-Client-* headers/UA suffix
 	// derived from these signals
 	ClientSignals *clientsignals.Signals
+
+	// optional; bounds each HTTP request made by the client.
+	// Defaults to 30s when zero or negative.
+	Timeout time.Duration
 }
 
 func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
@@ -77,6 +84,12 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("uiex: can't setup HTTP client to %s: %w", baseUrl.String(), err)
 	}
+
+	timeout := opts.Timeout
+	if timeout <= 0 {
+		timeout = defaultHTTPTimeout
+	}
+	httpClient.Timeout = timeout
 
 	userAgent := "flyctl"
 	if opts.UserAgent != "" {
