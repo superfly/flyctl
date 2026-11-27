@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math/rand/v2"
 	"slices"
 	"strconv"
 	"sync"
@@ -45,7 +46,7 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 	m := tokenMonitor{disk: before}
 	updated := before.Copy()
 
-	updated1, err := fetchOrgTokens(monitorCtx, updated)
+	updated1, err := fetchOrgTokens(monitorCtx, updated, orgCheckStartup)
 	if err != nil {
 		log.Debugf("failed to fetch missing tokens org tokens: %s", err)
 	}
@@ -221,16 +222,109 @@ func credentialRoots(t *tokens.Tokens) ([]string, bool) {
 	return roots, true
 }
 
+const (
+	// dischargeRefreshInterval is how often the background monitor refreshes
+	// discharge tokens. They expire after 10 minutes, so it has to stay short.
+	dischargeRefreshInterval = time.Minute
+
+	// orgCheckInterval is how often the background monitor asks web which
+	// organizations the user belongs to. Every command already asks when it
+	// starts, and the agent picks that result up from the config file, so the
+	// timer only matters to a process that outlives a membership change. The
+	// check rarely finds anything to do, and once a minute from every agent it
+	// was about half of web's GraphQL database time (superfly/web#5177).
+	orgCheckInterval = 15 * time.Minute
+
+	// orgCheckRetryInterval is how soon a failed check is tried again.
+	orgCheckRetryInterval = 5 * time.Minute
+)
+
+// orgCheckTrigger says why the organization check is running. It only picks
+// the name of the GraphQL operation, so web's logs can tell the two apart.
+type orgCheckTrigger int
+
+const (
+	// orgCheckStartup is the check MonitorTokens makes before it returns.
+	orgCheckStartup orgCheckTrigger = iota
+	// orgCheckPeriodic is the background monitor's timer.
+	orgCheckPeriodic
+)
+
+// orgCheckSchedule decides when the background monitor checks organizations
+// again.
+type orgCheckSchedule struct {
+	next time.Time
+	// users are the user tokens the last check ran with.
+	users  []string
+	jitter func(time.Duration) time.Duration
+}
+
+// newOrgCheckSchedule starts from a check that has just run for users.
+func newOrgCheckSchedule(now time.Time, users []string, jitter func(time.Duration) time.Duration) *orgCheckSchedule {
+	s := &orgCheckSchedule{jitter: jitter}
+	s.done(now, users, nil)
+
+	return s
+}
+
+// due reports whether to check now: the interval has passed, or the user
+// tokens aren't the ones last checked, which means a different login.
+func (s *orgCheckSchedule) due(now time.Time, users []string) bool {
+	return !now.Before(s.next) || !slices.Equal(users, s.users)
+}
+
+// done records a check that ran for users. A failed check is retried sooner.
+func (s *orgCheckSchedule) done(now time.Time, users []string, err error) {
+	s.users = slices.Clone(users)
+	if err != nil {
+		s.next = now.Add(orgCheckRetryInterval)
+
+		return
+	}
+	s.next = now.Add(s.jitter(orgCheckInterval))
+}
+
+// jitterTenPercent returns d moved by up to 10% either way, so processes
+// started together don't keep checking together.
+func jitterTenPercent(d time.Duration) time.Duration {
+	return d - d/10 + rand.N(d/5+1)
+}
+
+// tokenRefreshOps are the remote calls the background monitor makes. Tests
+// replace them.
+type tokenRefreshOps struct {
+	fetchOrgTokens         func(context.Context, *tokens.Tokens, orgCheckTrigger) (bool, error)
+	refreshDischargeTokens func(context.Context, *tokens.Tokens, UserURLCallback, time.Duration) (bool, error)
+}
+
 // keepConfigTokensFresh periodically updates our tokens and syncs those to the config
 // file.
 func keepConfigTokensFresh(ctx context.Context, m *tokenMonitor, t *tokens.Tokens, uucb UserURLCallback, done func()) error {
 	defer done()
 
-	ticker := time.NewTicker(time.Minute)
+	ops := tokenRefreshOps{fetchOrgTokens: fetchOrgTokens, refreshDischargeTokens: refreshDischargeTokens}
+
+	return refreshTokensPeriodically(ctx, m, t, uucb, ops, jitterTenPercent)
+}
+
+// refreshTokensPeriodically refreshes discharge tokens every
+// dischargeRefreshInterval and checks organizations every orgCheckInterval.
+// The two share one loop so that their results are committed together.
+func refreshTokensPeriodically(
+	ctx context.Context,
+	m *tokenMonitor,
+	t *tokens.Tokens,
+	uucb UserURLCallback,
+	ops tokenRefreshOps,
+	jitter func(time.Duration) time.Duration,
+) error {
+	ticker := time.NewTicker(dischargeRefreshInterval)
 	defer ticker.Stop()
 
 	logger := logger.FromContext(ctx)
 	file := t.FromFile()
+	// MonitorTokens checked organizations just before it started this loop.
+	orgCheck := newOrgCheckSchedule(time.Now(), t.GetUserTokens(), jitter)
 
 	for {
 		select {
@@ -240,13 +334,18 @@ func keepConfigTokensFresh(ctx context.Context, m *tokenMonitor, t *tokens.Token
 			beforeUpdate := t.Copy()
 			localCopy := beforeUpdate.Copy()
 
-			updated1, err := fetchOrgTokens(ctx, localCopy)
-			if err != nil {
-				logger.Debugf("failed to fetch missing org tokens: %s", err)
-				// don't continue. might have been partial success
+			var updated1 bool
+			if users := localCopy.GetUserTokens(); orgCheck.due(time.Now(), users) {
+				var err error
+				updated1, err = ops.fetchOrgTokens(ctx, localCopy, orgCheckPeriodic)
+				if err != nil {
+					logger.Debugf("failed to fetch missing org tokens: %s", err)
+					// don't continue. might have been partial success
+				}
+				orgCheck.done(time.Now(), users, err)
 			}
 
-			updated2, err := refreshDischargeTokens(ctx, localCopy, uucb, 2*time.Minute)
+			updated2, err := ops.refreshDischargeTokens(ctx, localCopy, uucb, 2*time.Minute)
 			if err != nil {
 				logger.Debugf("failed to update discharge tokens: %s", err)
 				// don't continue. might have been partial success
@@ -340,13 +439,17 @@ func doRefreshDischargeTokens(
 // there was an error.
 //
 // Don't call this when other goroutines might also be accessing t.
-func fetchOrgTokens(ctx context.Context, t *tokens.Tokens) (bool, error) {
+func fetchOrgTokens(ctx context.Context, t *tokens.Tokens, trigger orgCheckTrigger) (bool, error) {
 	// don't fetch missing org tokens if tokens came from environment var
 	if t.FromFile() == "" {
 		return false, nil
 	}
 
-	return doFetchOrgTokens(ctx, t, defaultOrgFetcher, defaultTokenMinter)
+	fetchOrgs := func(ctx context.Context, c flyutil.Client) (map[uint64]string, error) {
+		return defaultOrgFetcher(ctx, c, trigger)
+	}
+
+	return doFetchOrgTokens(ctx, t, fetchOrgs, defaultTokenMinter)
 }
 
 func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetcher, mintToken tokenMinter) (bool, error) {
@@ -477,17 +580,35 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 // orgFetcher allows us to stub out gql calls in tests
 type orgFetcher func(context.Context, flyutil.Client) (map[uint64]string, error)
 
-func defaultOrgFetcher(ctx context.Context, c flyutil.Client) (map[uint64]string, error) {
-	orgs, err := c.GetOrganizations(ctx)
+// defaultOrgFetcher asks web for the organizations the user belongs to. It
+// requests only the two IDs it uses: web runs extra queries per organization
+// for fields like viewerRole and billable.
+func defaultOrgFetcher(ctx context.Context, c flyutil.Client, trigger orgCheckTrigger) (map[uint64]string, error) {
+	graphIDByNumericID := map[uint64]string{}
+	add := func(graphID, numericID string) {
+		if uintID, err := strconv.ParseUint(numericID, 10, 64); err == nil {
+			graphIDByNumericID[uintID] = graphID
+		}
+	}
+
+	if trigger == orgCheckPeriodic {
+		resp, err := gql.OrgTokenCheckPeriodic(ctx, c.GenqClient())
+		if err != nil {
+			return nil, err
+		}
+		for _, org := range resp.Organizations.Nodes {
+			add(org.Id, org.InternalNumericId)
+		}
+
+		return graphIDByNumericID, nil
+	}
+
+	resp, err := gql.OrgTokenCheckStartup(ctx, c.GenqClient())
 	if err != nil {
 		return nil, err
 	}
-
-	graphIDByNumericID := make(map[uint64]string, len(orgs))
-	for _, org := range orgs {
-		if uintID, err := strconv.ParseUint(org.InternalNumericID, 10, 64); err == nil {
-			graphIDByNumericID[uintID] = org.ID
-		}
+	for _, org := range resp.Organizations.Nodes {
+		add(org.Id, org.InternalNumericId)
 	}
 
 	return graphIDByNumericID, nil

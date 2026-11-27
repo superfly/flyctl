@@ -2967,6 +2967,86 @@ type LogOutResponse struct {
 // GetLogOut returns LogOutResponse.LogOut, and is useful for accessing the field via an interface.
 func (v *LogOutResponse) GetLogOut() LogOutLogOutLogOutPayload { return v.LogOut }
 
+// OrgTokenCheckPeriodicOrganizationsOrganizationConnection includes the requested fields of the GraphQL type OrganizationConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for Organization.
+type OrgTokenCheckPeriodicOrganizationsOrganizationConnection struct {
+	// A list of nodes.
+	Nodes []OrgTokenCheckPeriodicOrganizationsOrganizationConnectionNodesOrganization `json:"nodes"`
+}
+
+// GetNodes returns OrgTokenCheckPeriodicOrganizationsOrganizationConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *OrgTokenCheckPeriodicOrganizationsOrganizationConnection) GetNodes() []OrgTokenCheckPeriodicOrganizationsOrganizationConnectionNodesOrganization {
+	return v.Nodes
+}
+
+// OrgTokenCheckPeriodicOrganizationsOrganizationConnectionNodesOrganization includes the requested fields of the GraphQL type Organization.
+type OrgTokenCheckPeriodicOrganizationsOrganizationConnectionNodesOrganization struct {
+	Id                string `json:"id"`
+	InternalNumericId string `json:"internalNumericId"`
+}
+
+// GetId returns OrgTokenCheckPeriodicOrganizationsOrganizationConnectionNodesOrganization.Id, and is useful for accessing the field via an interface.
+func (v *OrgTokenCheckPeriodicOrganizationsOrganizationConnectionNodesOrganization) GetId() string {
+	return v.Id
+}
+
+// GetInternalNumericId returns OrgTokenCheckPeriodicOrganizationsOrganizationConnectionNodesOrganization.InternalNumericId, and is useful for accessing the field via an interface.
+func (v *OrgTokenCheckPeriodicOrganizationsOrganizationConnectionNodesOrganization) GetInternalNumericId() string {
+	return v.InternalNumericId
+}
+
+// OrgTokenCheckPeriodicResponse is returned by OrgTokenCheckPeriodic on success.
+type OrgTokenCheckPeriodicResponse struct {
+	Organizations OrgTokenCheckPeriodicOrganizationsOrganizationConnection `json:"organizations"`
+}
+
+// GetOrganizations returns OrgTokenCheckPeriodicResponse.Organizations, and is useful for accessing the field via an interface.
+func (v *OrgTokenCheckPeriodicResponse) GetOrganizations() OrgTokenCheckPeriodicOrganizationsOrganizationConnection {
+	return v.Organizations
+}
+
+// OrgTokenCheckStartupOrganizationsOrganizationConnection includes the requested fields of the GraphQL type OrganizationConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for Organization.
+type OrgTokenCheckStartupOrganizationsOrganizationConnection struct {
+	// A list of nodes.
+	Nodes []OrgTokenCheckStartupOrganizationsOrganizationConnectionNodesOrganization `json:"nodes"`
+}
+
+// GetNodes returns OrgTokenCheckStartupOrganizationsOrganizationConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *OrgTokenCheckStartupOrganizationsOrganizationConnection) GetNodes() []OrgTokenCheckStartupOrganizationsOrganizationConnectionNodesOrganization {
+	return v.Nodes
+}
+
+// OrgTokenCheckStartupOrganizationsOrganizationConnectionNodesOrganization includes the requested fields of the GraphQL type Organization.
+type OrgTokenCheckStartupOrganizationsOrganizationConnectionNodesOrganization struct {
+	Id                string `json:"id"`
+	InternalNumericId string `json:"internalNumericId"`
+}
+
+// GetId returns OrgTokenCheckStartupOrganizationsOrganizationConnectionNodesOrganization.Id, and is useful for accessing the field via an interface.
+func (v *OrgTokenCheckStartupOrganizationsOrganizationConnectionNodesOrganization) GetId() string {
+	return v.Id
+}
+
+// GetInternalNumericId returns OrgTokenCheckStartupOrganizationsOrganizationConnectionNodesOrganization.InternalNumericId, and is useful for accessing the field via an interface.
+func (v *OrgTokenCheckStartupOrganizationsOrganizationConnectionNodesOrganization) GetInternalNumericId() string {
+	return v.InternalNumericId
+}
+
+// OrgTokenCheckStartupResponse is returned by OrgTokenCheckStartup on success.
+type OrgTokenCheckStartupResponse struct {
+	Organizations OrgTokenCheckStartupOrganizationsOrganizationConnection `json:"organizations"`
+}
+
+// GetOrganizations returns OrgTokenCheckStartupResponse.Organizations, and is useful for accessing the field via an interface.
+func (v *OrgTokenCheckStartupResponse) GetOrganizations() OrgTokenCheckStartupOrganizationsOrganizationConnection {
+	return v.Organizations
+}
+
 // OrganizationData includes the GraphQL fields of Organization requested by the fragment OrganizationData.
 type OrganizationData struct {
 	Id string `json:"id"`
@@ -4726,6 +4806,78 @@ func LogOut(
 	}
 
 	data_ = &LogOutResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by OrgTokenCheckPeriodic.
+const OrgTokenCheckPeriodic_Operation = `
+query OrgTokenCheckPeriodic {
+	organizations {
+		nodes {
+			id
+			internalNumericId
+		}
+	}
+}
+`
+
+func OrgTokenCheckPeriodic(
+	ctx_ context.Context,
+	client_ graphql.Client,
+) (data_ *OrgTokenCheckPeriodicResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "OrgTokenCheckPeriodic",
+		Query:  OrgTokenCheckPeriodic_Operation,
+	}
+
+	data_ = &OrgTokenCheckPeriodicResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by OrgTokenCheckStartup.
+const OrgTokenCheckStartup_Operation = `
+query OrgTokenCheckStartup {
+	organizations {
+		nodes {
+			id
+			internalNumericId
+		}
+	}
+}
+`
+
+// The org-token check (internal/config/tokens.go) reads two fields of each organization. It asks for nothing else
+// because web runs extra queries per organization for fields like viewerRole and billable. The two operations are
+// the same query under different names, so web's logs can tell a command starting from the background timer.
+//
+// internalNumericId is a BigInt, which web sends as a JSON string, so it's bound to string here and not to the
+// int64 that genqlient.yaml maps BigInt to.
+func OrgTokenCheckStartup(
+	ctx_ context.Context,
+	client_ graphql.Client,
+) (data_ *OrgTokenCheckStartupResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "OrgTokenCheckStartup",
+		Query:  OrgTokenCheckStartup_Operation,
+	}
+
+	data_ = &OrgTokenCheckStartupResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
