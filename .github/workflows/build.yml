@@ -7,6 +7,9 @@ on:
       - master
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
@@ -18,7 +21,8 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v7
+          persist-credentials: false
+      - uses: actions/setup-go@v7.0.0
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -32,7 +36,7 @@ jobs:
           version: "~> v2"
           args: build --clean --snapshot --verbose
       - name: Upload flyctl for preflight
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: flyctl
           path: dist/default_linux_amd64_v1/flyctl
@@ -43,4 +47,7 @@ jobs:
     if: ${{ (github.event_name == 'schedule' || github.ref == 'refs/heads/master' || github.event_name == 'pull_request') && github.actor != 'dependabot[bot]' }}
     needs: test_build
     uses: ./.github/workflows/preflight.yml
-    secrets: inherit
+    secrets:
+      FLYCTL_PREFLIGHT_CI_USER_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_USER_TOKEN }}
+      FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+      PREFLIGHT_SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
