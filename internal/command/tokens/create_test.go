@@ -208,3 +208,8 @@ func TestReadonlyFromExistingAddsExpiryWithoutIssuingToken(t *testing.T) {
 	require.LessOrEqual(t, windows[0].NotAfter, time.Now().Add(time.Hour).Unix())
 	require.InDelta(t, int64(time.Hour/time.Second), windows[0].NotAfter-windows[0].NotBefore, 1)
 }
+
+func TestMachineExecHelpDocs(t *testing.T) {
+	cmd := newMachineExec()
+	require.Contains(t, cmd.Long, "does not permit access to app secrets or secret metadata")
+}

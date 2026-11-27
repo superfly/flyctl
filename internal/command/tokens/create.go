@@ -184,7 +184,7 @@ func newDeploy() *cobra.Command {
 func newMachineExec() *cobra.Command {
 	const (
 		short = "Create a machine exec token"
-		long  = "Create an API token that can execute a restricted set of commands on a machine. Commands can be specified on the command line or with the command and command-prefix flags. If no command is provided, all commands are allowed. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
+		long  = "Create an API token that can execute a restricted set of commands on a machine. Commands can be specified on the command line or with the command and command-prefix flags. If no command is provided, all commands are allowed. The token permits read access to non-sensitive app resources (such as machines, volumes, and health checks), but does not permit access to app secrets or secret metadata. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical." + tokenFormatNote
 		usage = "machine-exec [command...]"
 	)
 
