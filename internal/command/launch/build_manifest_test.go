@@ -654,6 +654,43 @@ server = "bin/server.sh"
 		"[[services]] from the copied config must be preserved")
 }
 
+// Copying a config whose [[vm]] block uses `size` alongside another MachineGuest
+// setting (or across process groups) must not write `memory` next to `size`.
+// Issue #5462.
+func TestLaunchCopyConfigPreservesVMSizeWithoutMemory(t *testing.T) {
+	flyToml := `app = 'example-app'
+primary_region = 'iad'
+
+[processes]
+  app = "bin/web"
+  worker = "bin/worker"
+
+[[vm]]
+  processes = ["app"]
+  memory = "1gb"
+
+[[vm]]
+  processes = ["worker"]
+  size = "performance-4x"
+  cpus = 4
+  kernel_args = ["quiet"]
+`
+	env := newManifestEnv()
+	files := map[string]string{"Dockerfile": "FROM nginx\n"}
+	res, err := env.buildManifestWithFlyToml(t, files, flyToml, "--copy-config", "--no-deploy")
+	require.NoError(t, err)
+
+	_, err = launchPlan(t, res)
+	require.NoError(t, err)
+
+	cfg := loadFlyToml(t, res.dir)
+	require.Len(t, cfg.Compute, 2)
+	assert.Equal(t, "1gb", cfg.Compute[0].Memory)
+	assert.Equal(t, "performance-4x", cfg.Compute[1].Size)
+	assert.Empty(t, cfg.Compute[1].Memory, "memory must not be written next to size in a copied [[vm]] block")
+	assert.Zero(t, cfg.Compute[1].MemoryMB)
+}
+
 func TestBuildManifestNothingToBuild(t *testing.T) {
 	_, err := newManifestEnv().buildManifestFrom(t, "my-app", map[string]string{"README.md": "hi\n"})
 	assert.ErrorContains(t, err, "found nothing to build")
