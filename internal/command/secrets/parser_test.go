@@ -236,6 +236,9 @@ func TestParseSecretsValidEdgeCases(t *testing.T) {
 		{name: "unicode", input: "FOO=\"héllo 世界\"", want: map[string]string{"FOO": "héllo 世界"}},
 		{name: "equals in value", input: "FOO=a=b=c", want: map[string]string{"FOO": "a=b=c"}},
 		{name: "quoted hash", input: "FOO=\"a#b\"", want: map[string]string{"FOO": "a#b"}},
+		{name: "single quoted hash", input: "FOO='a#b'", want: map[string]string{"FOO": "a#b"}},
+		{name: "single quoted hash with comment", input: "FOO='a#b' # comment", want: map[string]string{"FOO": "a#b"}},
+		{name: "double quoted hash with comment", input: "FOO=\"a#b\" # comment", want: map[string]string{"FOO": "a#b"}},
 		{name: "multiline closes at EOF", input: "FOO=\"\"\"a\nb\"\"\"", want: map[string]string{"FOO": "a\nb"}},
 		{name: "multiline CRLF", input: "FOO=\"\"\"a\r\nb\"\"\"\r\nBAR=value", want: map[string]string{"FOO": "a\nb", "BAR": "value"}},
 	} {
