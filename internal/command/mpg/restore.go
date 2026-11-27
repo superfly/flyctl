@@ -55,6 +55,9 @@ required.`
 		},
 	)
 
+	cmd.MarkFlagsMutuallyExclusive("backup-id", "pitr-time")
+	cmd.MarkFlagsOneRequired("backup-id", "pitr-time")
+
 	return cmd
 }
 
@@ -63,12 +66,6 @@ func runRestore(ctx context.Context) error {
 	backupID := flag.GetString(ctx, "backup-id")
 	pitrTime := flag.GetString(ctx, "pitr-time")
 	name := flag.GetString(ctx, "name")
-	if backupID == "" && pitrTime == "" {
-		return fmt.Errorf("one of --backup-id or --pitr-time is required")
-	}
-	if backupID != "" && pitrTime != "" {
-		return fmt.Errorf("--backup-id and --pitr-time are mutually exclusive")
-	}
 	if pitrTime != "" {
 		if _, err := time.Parse(time.RFC3339, pitrTime); err != nil {
 			return fmt.Errorf("--pitr-time must be an RFC3339 timestamp with an explicit offset (e.g. 2026-06-01T12:00:00Z): %w", err)
