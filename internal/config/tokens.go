@@ -42,27 +42,15 @@ type UserURLCallback func(ctx context.Context, url string) error
 func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCallback) (func() error, error) {
 	log := logger.FromContext(monitorCtx)
 	file := t.FromFile()
-	before := t.Copy()
-	m := tokenMonitor{disk: before}
-	updated := before.Copy()
+	m := tokenMonitor{disk: t.Copy()}
 
-	updated1, err := fetchOrgTokens(monitorCtx, updated, orgCheckStartup)
-	if err != nil {
-		log.Debugf("failed to fetch missing tokens org tokens: %s", err)
-	}
+	orgCheck, dischargeErr := refreshTokensAtStartup(monitorCtx, &m, t, uucb, defaultTokenRefreshOps, jitterTenPercent)
 
-	updated2, dischargeErr := refreshDischargeTokens(monitorCtx, updated, uucb, 30*time.Second)
-	if dischargeErr != nil {
-		log.Debugf("failed to update discharge tokens: %s", dischargeErr)
-	}
-
-	if updated1 || updated2 {
-		if err := commitTokenRefresh(&m, t, before, updated, file); err != nil {
-			log.Debugf("failed to persist updated tokens: %s", err)
-		}
-	}
+	tokenMonitors.Store(t, &m)
 
 	task.FromContext(monitorCtx).Run(func(taskCtx context.Context) {
+		defer tokenMonitors.CompareAndDelete(t, &m)
+
 		taskCtx, cancelTask := context.WithCancelCause(taskCtx)
 
 		var wg sync.WaitGroup
@@ -76,7 +64,7 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		}
 
 		go monitorConfigTokenChanges(taskCtx, &m, t, wg.Done)
-		go keepConfigTokensFresh(taskCtx, &m, t, uucb, wg.Done)
+		go keepConfigTokensFresh(taskCtx, &m, t, uucb, orgCheck, wg.Done)
 
 		// shut down when the task manager is shutting down or when the
 		// ctx passed into MonitorTokens is cancelled.
@@ -126,6 +114,10 @@ type tokenMonitor struct {
 	disk *tokens.Tokens
 }
 
+// tokenMonitors holds the monitor of every *tokens.Tokens that MonitorTokens is
+// watching, so that EnsureOrgToken can commit through the same lock.
+var tokenMonitors sync.Map
+
 // syncConfigTokens reads under the monitor lock so an older read cannot
 // overwrite a newer sync or interleave with a refresh commit.
 func syncConfigTokens(m *tokenMonitor, t *tokens.Tokens) error {
@@ -150,19 +142,24 @@ func syncConfigTokens(m *tokenMonitor, t *tokens.Tokens) error {
 
 // commitTokenRefresh checks both the monitored snapshot and the file before
 // committing. The file comparison and write share the config file lock.
-func commitTokenRefresh(m *tokenMonitor, t, before, updated *tokens.Tokens, file string) error {
+//
+// applied is false when updated was thrown away: t changed while the refresh
+// ran, or the config file did and its tokens were adopted instead. That is not
+// an error, but the caller's work is gone and it may want to redo it.
+func commitTokenRefresh(m *tokenMonitor, t, before, updated *tokens.Tokens, file string) (applied bool, err error) {
 	m.Lock()
 	defer m.Unlock()
 	if !before.Equal(t) && !preservesCompletedDischarge(before, t, updated) {
-		return nil
+		return false, nil
 	}
-	var err error
+	applied = true
 	if file != "" {
 		var current *tokens.Tokens
 		current, err = setAccessTokenIfUnchanged(file, m.disk, updated)
 		if current != nil {
 			// Make progress even if the watcher has stopped after a read error.
 			updated = current
+			applied = false
 		}
 		if err == nil {
 			m.disk = updated.Copy()
@@ -171,7 +168,7 @@ func commitTokenRefresh(m *tokenMonitor, t, before, updated *tokens.Tokens, file
 	// Keep refreshed credentials usable in memory even if persistence failed.
 	t.Replace(updated)
 
-	return err
+	return applied, err
 }
 
 // preservesCompletedDischarge allows a completed authentication to beat a partial
@@ -235,8 +232,16 @@ const (
 	// was about half of web's GraphQL database time (superfly/web#5177).
 	orgCheckInterval = 15 * time.Minute
 
-	// orgCheckRetryInterval is how soon a failed check is tried again.
+	// orgCheckRetryInterval is how soon a failed check is tried again. It is
+	// also the shortest gap between two checks that the schedule brings forward
+	// on its own.
 	orgCheckRetryInterval = 5 * time.Minute
+
+	// orgCheckSlack is how early a check may run. The monitor only looks at the
+	// schedule once per dischargeRefreshInterval, and its ticks never land on
+	// the same instant twice, so a check that is due a moment after a tick runs
+	// on that tick, not a whole one later.
+	orgCheckSlack = dischargeRefreshInterval / 2
 )
 
 // orgCheckTrigger says why the organization check is running. It only picks
@@ -244,7 +249,8 @@ const (
 type orgCheckTrigger int
 
 const (
-	// orgCheckStartup is the check MonitorTokens makes before it returns.
+	// orgCheckStartup is a check a command asked for: the one MonitorTokens
+	// makes before it returns, or EnsureOrgToken.
 	orgCheckStartup orgCheckTrigger = iota
 	// orgCheckPeriodic is the background monitor's timer.
 	orgCheckPeriodic
@@ -252,36 +258,69 @@ const (
 
 // orgCheckSchedule decides when the background monitor checks organizations
 // again.
+//
+// It keeps wall-clock times, with the monotonic reading stripped. A laptop's
+// monotonic clock stops while it sleeps, and the membership change this check
+// exists to notice is most likely to have happened in exactly that time.
 type orgCheckSchedule struct {
-	next time.Time
+	checked time.Time
+	next    time.Time
 	// users are the user tokens the last check ran with.
 	users  []string
 	jitter func(time.Duration) time.Duration
+	// dischargeFailing is whether the last discharge refresh failed.
+	dischargeFailing bool
 }
 
-// newOrgCheckSchedule starts from a check that has just run for users.
-func newOrgCheckSchedule(now time.Time, users []string, jitter func(time.Duration) time.Duration) *orgCheckSchedule {
-	s := &orgCheckSchedule{jitter: jitter}
-	s.done(now, users, nil)
-
-	return s
+// newOrgCheckSchedule returns a schedule with a check due right away. Record
+// one with done.
+func newOrgCheckSchedule(jitter func(time.Duration) time.Duration) *orgCheckSchedule {
+	return &orgCheckSchedule{jitter: jitter}
 }
 
-// due reports whether to check now: the interval has passed, or the user
-// tokens aren't the ones last checked, which means a different login.
+// due reports whether to check now: the interval has passed, the clock was
+// set back to before the last check, or the user tokens aren't the ones last
+// checked, which means a different login.
 func (s *orgCheckSchedule) due(now time.Time, users []string) bool {
-	return !now.Before(s.next) || !slices.Equal(users, s.users)
+	now = now.Round(0)
+
+	return !now.Before(s.next.Add(-orgCheckSlack)) || now.Before(s.checked) || !slices.Equal(users, s.users)
 }
 
-// done records a check that ran for users. A failed check is retried sooner.
+// done records a check that started at now for users. A failed check is
+// retried sooner.
 func (s *orgCheckSchedule) done(now time.Time, users []string, err error) {
-	s.users = slices.Clone(users)
-	if err != nil {
-		s.next = now.Add(orgCheckRetryInterval)
-
-		return
+	delay := orgCheckRetryInterval
+	if err == nil {
+		delay = s.jitter(orgCheckInterval)
 	}
-	s.next = now.Add(s.jitter(orgCheckInterval))
+	s.checked = now.Round(0)
+	s.next = s.checked.Add(delay)
+	s.users = slices.Clone(users)
+}
+
+// resultDropped says that what the last check minted or pruned was thrown
+// away, so the check is due again.
+func (s *orgCheckSchedule) resultDropped() {
+	s.next = s.checked
+}
+
+// dischargeResult records how a discharge refresh went. One that starts
+// failing may mean the user left an organization whose token we still hold:
+// only the check prunes that token, and until then every refresh asks for its
+// discharge again. So the check is brought forward, to no sooner than
+// orgCheckRetryInterval after the last one.
+//
+// That happens once per run of failures. A refresh that still fails after the
+// check is failing for some other reason, such as an SSO session that an agent
+// can't renew, and must not bring the frequent checks back.
+func (s *orgCheckSchedule) dischargeResult(err error) {
+	if err != nil && !s.dischargeFailing {
+		if soonest := s.checked.Add(orgCheckRetryInterval); soonest.Before(s.next) {
+			s.next = soonest
+		}
+	}
+	s.dischargeFailing = err != nil
 }
 
 // jitterTenPercent returns d moved by up to 10% either way, so processes
@@ -290,59 +329,105 @@ func jitterTenPercent(d time.Duration) time.Duration {
 	return d - d/10 + rand.N(d/5+1)
 }
 
-// tokenRefreshOps are the remote calls the background monitor makes. Tests
-// replace them.
+// tokenRefreshOps are the remote calls the monitor makes. Tests replace them.
 type tokenRefreshOps struct {
 	fetchOrgTokens         func(context.Context, *tokens.Tokens, orgCheckTrigger) (bool, error)
 	refreshDischargeTokens func(context.Context, *tokens.Tokens, UserURLCallback, time.Duration) (bool, error)
 }
 
-// keepConfigTokensFresh periodically updates our tokens and syncs those to the config
-// file.
-func keepConfigTokensFresh(ctx context.Context, m *tokenMonitor, t *tokens.Tokens, uucb UserURLCallback, done func()) error {
-	defer done()
+var defaultTokenRefreshOps = tokenRefreshOps{fetchOrgTokens: fetchOrgTokens, refreshDischargeTokens: refreshDischargeTokens}
 
-	ops := tokenRefreshOps{fetchOrgTokens: fetchOrgTokens, refreshDischargeTokens: refreshDischargeTokens}
-
-	return refreshTokensPeriodically(ctx, m, t, uucb, ops, jitterTenPercent)
-}
-
-// refreshTokensPeriodically refreshes discharge tokens every
-// dischargeRefreshInterval and checks organizations every orgCheckInterval.
-// The two share one loop so that their results are committed together.
-func refreshTokensPeriodically(
+// refreshTokensAtStartup is the pass MonitorTokens makes before it returns. It
+// gives back the schedule the background loop continues from, so a check that
+// failed here is retried sooner like any other, and the error of the discharge
+// refresh.
+func refreshTokensAtStartup(
 	ctx context.Context,
 	m *tokenMonitor,
 	t *tokens.Tokens,
 	uucb UserURLCallback,
 	ops tokenRefreshOps,
 	jitter func(time.Duration) time.Duration,
+) (*orgCheckSchedule, error) {
+	log := logger.FromContext(ctx)
+	before := t.Copy()
+	updated := before.Copy()
+
+	orgCheck := newOrgCheckSchedule(jitter)
+	now := time.Now()
+	updated1, err := ops.fetchOrgTokens(ctx, updated, orgCheckStartup)
+	if err != nil {
+		log.Debugf("failed to fetch missing tokens org tokens: %s", err)
+	}
+	orgCheck.done(now, updated.GetUserTokens(), err)
+
+	updated2, dischargeErr := ops.refreshDischargeTokens(ctx, updated, uucb, 30*time.Second)
+	if dischargeErr != nil {
+		log.Debugf("failed to update discharge tokens: %s", dischargeErr)
+	}
+	// Organizations were checked a moment ago, so this failure is no reason to
+	// check them again. See orgCheckSchedule.dischargeResult.
+	orgCheck.dischargeFailing = dischargeErr != nil
+
+	if updated1 || updated2 {
+		applied, err := commitTokenRefresh(m, t, before, updated, t.FromFile())
+		if err != nil {
+			log.Debugf("failed to persist updated tokens: %s", err)
+		}
+		if updated1 && !applied {
+			orgCheck.resultDropped()
+		}
+	}
+
+	return orgCheck, dischargeErr
+}
+
+// keepConfigTokensFresh periodically updates our tokens and syncs those to the config
+// file.
+func keepConfigTokensFresh(ctx context.Context, m *tokenMonitor, t *tokens.Tokens, uucb UserURLCallback, orgCheck *orgCheckSchedule, done func()) error {
+	defer done()
+
+	return refreshTokensPeriodically(ctx, m, t, uucb, defaultTokenRefreshOps, orgCheck)
+}
+
+// refreshTokensPeriodically refreshes discharge tokens every
+// dischargeRefreshInterval and checks organizations when orgCheck says to,
+// which is about every orgCheckInterval. The two share one loop so that their
+// results are committed together.
+func refreshTokensPeriodically(
+	ctx context.Context,
+	m *tokenMonitor,
+	t *tokens.Tokens,
+	uucb UserURLCallback,
+	ops tokenRefreshOps,
+	orgCheck *orgCheckSchedule,
 ) error {
 	ticker := time.NewTicker(dischargeRefreshInterval)
 	defer ticker.Stop()
 
 	logger := logger.FromContext(ctx)
 	file := t.FromFile()
-	// MonitorTokens checked organizations just before it started this loop.
-	orgCheck := newOrgCheckSchedule(time.Now(), t.GetUserTokens(), jitter)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
+			// The schedule counts from when a tick's work starts, not from when
+			// its check returns, so the next deadline falls on a tick too.
+			now := time.Now()
 			beforeUpdate := t.Copy()
 			localCopy := beforeUpdate.Copy()
 
 			var updated1 bool
-			if users := localCopy.GetUserTokens(); orgCheck.due(time.Now(), users) {
+			if users := localCopy.GetUserTokens(); orgCheck.due(now, users) {
 				var err error
 				updated1, err = ops.fetchOrgTokens(ctx, localCopy, orgCheckPeriodic)
 				if err != nil {
 					logger.Debugf("failed to fetch missing org tokens: %s", err)
 					// don't continue. might have been partial success
 				}
-				orgCheck.done(time.Now(), users, err)
+				orgCheck.done(now, users, err)
 			}
 
 			updated2, err := ops.refreshDischargeTokens(ctx, localCopy, uucb, 2*time.Minute)
@@ -350,15 +435,23 @@ func refreshTokensPeriodically(
 				logger.Debugf("failed to update discharge tokens: %s", err)
 				// don't continue. might have been partial success
 			}
+			orgCheck.dischargeResult(err)
 
 			if !updated2 && !updated1 {
 				continue
 			}
 
-			if err := commitTokenRefresh(m, t, beforeUpdate, localCopy, file); err != nil {
+			applied, err := commitTokenRefresh(m, t, beforeUpdate, localCopy, file)
+			if err != nil {
 				logger.Debugf("failed to persist updated tokens: %s", err)
 				// Preserve the existing policy: stop persisting after a write error.
 				file = ""
+			}
+			if updated1 && !applied {
+				// Another process or a new login changed the tokens while the
+				// check ran. Check what is there now on the next tick, not in
+				// 15 minutes.
+				orgCheck.resultDropped()
 			}
 		}
 	}
@@ -583,32 +676,48 @@ type orgFetcher func(context.Context, flyutil.Client) (map[uint64]string, error)
 // defaultOrgFetcher asks web for the organizations the user belongs to. It
 // requests only the two IDs it uses: web runs extra queries per organization
 // for fields like viewerRole and billable.
+//
+// The caller prunes the token of every organization that is missing from the
+// result, so anything short of a complete answer is an error: a response with
+// no organization list at all, which decodes like an empty one, or an ID that
+// doesn't parse. A list that is present and empty is still an answer.
 func defaultOrgFetcher(ctx context.Context, c flyutil.Client, trigger orgCheckTrigger) (map[uint64]string, error) {
-	graphIDByNumericID := map[uint64]string{}
-	add := func(graphID, numericID string) {
-		if uintID, err := strconv.ParseUint(numericID, 10, 64); err == nil {
-			graphIDByNumericID[uintID] = graphID
-		}
-	}
+	type org struct{ graphID, numericID string }
 
+	var (
+		orgs    []org
+		present bool
+	)
 	if trigger == orgCheckPeriodic {
 		resp, err := gql.OrgTokenCheckPeriodic(ctx, c.GenqClient())
 		if err != nil {
 			return nil, err
 		}
-		for _, org := range resp.Organizations.Nodes {
-			add(org.Id, org.InternalNumericId)
+		present = resp.Organizations.Nodes != nil
+		for _, node := range resp.Organizations.Nodes {
+			orgs = append(orgs, org{node.Id, node.InternalNumericId})
 		}
-
-		return graphIDByNumericID, nil
+	} else {
+		resp, err := gql.OrgTokenCheckStartup(ctx, c.GenqClient())
+		if err != nil {
+			return nil, err
+		}
+		present = resp.Organizations.Nodes != nil
+		for _, node := range resp.Organizations.Nodes {
+			orgs = append(orgs, org{node.Id, node.InternalNumericId})
+		}
+	}
+	if !present {
+		return nil, errors.New("web's answer has no list of organizations")
 	}
 
-	resp, err := gql.OrgTokenCheckStartup(ctx, c.GenqClient())
-	if err != nil {
-		return nil, err
-	}
-	for _, org := range resp.Organizations.Nodes {
-		add(org.Id, org.InternalNumericId)
+	graphIDByNumericID := make(map[uint64]string, len(orgs))
+	for _, o := range orgs {
+		numericID, err := strconv.ParseUint(o.numericID, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("organization %s has an unusable internal ID: %w", o.graphID, err)
+		}
+		graphIDByNumericID[numericID] = o.graphID
 	}
 
 	return graphIDByNumericID, nil
@@ -624,6 +733,66 @@ func defaultTokenMinter(ctx context.Context, c flyutil.Client, id string) (strin
 	}
 
 	return resp.CreateLimitedAccessToken.GetLimitedAccessToken().TokenHeader, nil
+}
+
+// EnsureOrgToken makes sure t holds a macaroon for the organization with the
+// given internal numeric ID, checking organizations now if it doesn't. It is
+// for a command that lets the user pick an organization long after it started:
+// `fly launch` waits on the Launch UI, where the user can pick one they have
+// just created or joined, and the next periodic check may be minutes away.
+//
+// It costs nothing when the token is already there, and does nothing for
+// tokens MonitorTokens isn't watching. The discharge it fetches for a new
+// macaroon is the non-interactive one, so an organization that wants an SSO
+// sign-in is left to the monitor's next refresh.
+func EnsureOrgToken(ctx context.Context, t *tokens.Tokens, orgID uint64) error {
+	return ensureOrgToken(ctx, t, orgID, defaultTokenRefreshOps)
+}
+
+func ensureOrgToken(ctx context.Context, t *tokens.Tokens, orgID uint64, ops tokenRefreshOps) error {
+	if orgID == 0 || holdsOrgToken(t, orgID) {
+		return nil
+	}
+	m, ok := tokenMonitors.Load(t)
+	if !ok {
+		return nil
+	}
+
+	before := t.Copy()
+	updated := before.Copy()
+	changed, err := ops.fetchOrgTokens(ctx, updated, orgCheckStartup)
+	if !changed {
+		return err
+	}
+	if _, dischargeErr := ops.refreshDischargeTokens(ctx, updated, nil, 30*time.Second); dischargeErr != nil {
+		err = errors.Join(err, dischargeErr)
+	}
+	applied, commitErr := commitTokenRefresh(m.(*tokenMonitor), t, before, updated, t.FromFile())
+	if !applied {
+		err = errors.Join(err, errors.New("the tokens changed during the organization check, so its result was dropped"))
+	}
+
+	return errors.Join(err, commitErr)
+}
+
+// holdsOrgToken reports whether t has a permission macaroon scoped to the
+// organization.
+func holdsOrgToken(t *tokens.Tokens, orgID uint64) bool {
+	for _, tok := range t.GetMacaroonTokens() {
+		parsed, err := macaroon.Parse(tok)
+		if err != nil {
+			continue
+		}
+		permMacs, _, _, _, err := macaroon.FindPermissionAndDischargeTokens(parsed, flyio.LocationPermission)
+		if err != nil || len(permMacs) != 1 {
+			continue
+		}
+		if oid, err := flyio.OrganizationScope(&permMacs[0].UnsafeCaveats); err == nil && oid == orgID {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ScopedIDs returns the internal numeric IDs of the organization and app that t

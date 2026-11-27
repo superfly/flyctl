@@ -88,6 +88,9 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	if state.PlanSource != nil && state.Plan.AppName != oldPlan.AppName {
 		state.PlanSource.appNameSource = "specified in the web UI"
 	}
+	if state.Plan.OrgSlug != oldPlan.OrgSlug {
+		state.ensureOrgToken(ctx)
+	}
 
 	// Handle database plan from form data
 	if pgData, ok := finalSession.Metadata["postgres"].(map[string]any); ok {
