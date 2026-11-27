@@ -87,11 +87,11 @@ func TestOrgCheckSchedule(t *testing.T) {
 
 	t.Run("a discharge that starts failing brings the check forward, once", func(t *testing.T) {
 		s := checkedAtStart()
-		s.dischargeResult(nil)
+		s.dischargeResult(nil, false)
 		require.False(t, s.due(start.Add(orgCheckRetryInterval), users))
 
 		// No sooner than the retry interval after the last check.
-		s.dischargeResult(failed)
+		s.dischargeResult(failed, false)
 		require.False(t, s.due(start.Add(orgCheckRetryInterval-minute), users))
 		require.True(t, s.due(start.Add(orgCheckRetryInterval), users))
 
@@ -99,14 +99,24 @@ func TestOrgCheckSchedule(t *testing.T) {
 		// organization: back to the usual interval.
 		checked := start.Add(orgCheckRetryInterval)
 		s.done(checked, users, nil)
-		s.dischargeResult(failed)
+		s.dischargeResult(failed, true)
 		require.False(t, s.due(checked.Add(orgCheckInterval-minute), users))
 		require.True(t, s.due(checked.Add(orgCheckInterval), users))
 
 		// A new run of failures counts again.
-		s.dischargeResult(nil)
-		s.dischargeResult(failed)
+		s.dischargeResult(nil, false)
+		s.dischargeResult(failed, false)
 		require.True(t, s.due(checked.Add(orgCheckRetryInterval), users))
+	})
+
+	// The check has just pruned what it could, so a failure that starts on the
+	// same tick isn't about an organization either.
+	t.Run("a discharge that starts failing right after a check doesn't", func(t *testing.T) {
+		s := checkedAtStart()
+		s.dischargeResult(failed, true)
+
+		require.False(t, s.due(start.Add(orgCheckInterval-minute), users))
+		require.True(t, s.due(start.Add(orgCheckInterval), users))
 	})
 }
 
@@ -301,6 +311,7 @@ func TestRefreshTokensPeriodically(t *testing.T) {
 		// and the next one is a full interval later.
 		{"on the next tick", 7 * time.Minute, []time.Duration{8 * minute, 23 * minute, 38 * minute}},
 		{"no sooner than 5 minutes after the last check", 2 * time.Minute, []time.Duration{5 * minute, 20 * minute, 35 * minute}},
+		{"but not when a check ran on that same tick", 15 * time.Minute, []time.Duration{15 * minute, 30 * minute}},
 	} {
 		t.Run("checks organizations when discharges start failing: "+tc.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {

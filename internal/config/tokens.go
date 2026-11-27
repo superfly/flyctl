@@ -313,9 +313,11 @@ func (s *orgCheckSchedule) resultDropped() {
 //
 // That happens once per run of failures. A refresh that still fails after the
 // check is failing for some other reason, such as an SSO session that an agent
-// can't renew, and must not bring the frequent checks back.
-func (s *orgCheckSchedule) dischargeResult(err error) {
-	if err != nil && !s.dischargeFailing {
+// can't renew, and must not bring the frequent checks back. For the same
+// reason a failure doesn't count when afterCheck says the refresh ran right
+// after a check, on the tokens that check had just pruned.
+func (s *orgCheckSchedule) dischargeResult(err error, afterCheck bool) {
+	if err != nil && !s.dischargeFailing && !afterCheck {
 		if soonest := s.checked.Add(orgCheckRetryInterval); soonest.Before(s.next) {
 			s.next = soonest
 		}
@@ -365,9 +367,7 @@ func refreshTokensAtStartup(
 	if dischargeErr != nil {
 		log.Debugf("failed to update discharge tokens: %s", dischargeErr)
 	}
-	// Organizations were checked a moment ago, so this failure is no reason to
-	// check them again. See orgCheckSchedule.dischargeResult.
-	orgCheck.dischargeFailing = dischargeErr != nil
+	orgCheck.dischargeResult(dischargeErr, true)
 
 	if updated1 || updated2 {
 		applied, err := commitTokenRefresh(m, t, before, updated, t.FromFile())
@@ -419,9 +419,10 @@ func refreshTokensPeriodically(
 			beforeUpdate := t.Copy()
 			localCopy := beforeUpdate.Copy()
 
-			var updated1 bool
+			var updated1, checked bool
 			if users := localCopy.GetUserTokens(); orgCheck.due(now, users) {
 				var err error
+				checked = true
 				updated1, err = ops.fetchOrgTokens(ctx, localCopy, orgCheckPeriodic)
 				if err != nil {
 					logger.Debugf("failed to fetch missing org tokens: %s", err)
@@ -435,7 +436,7 @@ func refreshTokensPeriodically(
 				logger.Debugf("failed to update discharge tokens: %s", err)
 				// don't continue. might have been partial success
 			}
-			orgCheck.dischargeResult(err)
+			orgCheck.dischargeResult(err, checked)
 
 			if !updated2 && !updated1 {
 				continue
