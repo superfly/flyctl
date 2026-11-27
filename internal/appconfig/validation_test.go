@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/cmdutil/preparers"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
@@ -182,4 +183,54 @@ func TestCacheDiskValidation(t *testing.T) {
 	cfg.CacheDisks[0].Size = "100000mib"
 	_, err = cfg.ToMachineConfig("app", nil)
 	require.NoError(t, err)
+}
+
+func TestValidateComputeMemoryAndMemoryMBWarning(t *testing.T) {
+	t.Run("warns when both memory and memory_mb are set in [[vm]]", func(t *testing.T) {
+		cfg := NewConfig()
+		cfg.Compute = []*Compute{
+			{
+				Memory: "2gb",
+				MachineGuest: &fly.MachineGuest{
+					MemoryMB: 1024,
+				},
+			},
+		}
+
+		err, extraInfo := cfg.Validate(context.Background())
+		require.NoError(t, err)
+		assert.Contains(t, extraInfo, "WARN")
+		assert.Contains(t, extraInfo, "memory takes precedence over memory_mb")
+	})
+
+	t.Run("warns when both memory and memory_mb are set in release_command_vm", func(t *testing.T) {
+		cfg := NewConfig()
+		cfg.Deploy = &Deploy{
+			ReleaseCommandCompute: &Compute{
+				Memory: "1gb",
+				MachineGuest: &fly.MachineGuest{
+					MemoryMB: 512,
+				},
+			},
+		}
+
+		err, extraInfo := cfg.Validate(context.Background())
+		require.NoError(t, err)
+		assert.Contains(t, extraInfo, "WARN")
+		assert.Contains(t, extraInfo, "[deploy.release_command_vm]")
+		assert.Contains(t, extraInfo, "memory takes precedence over memory_mb")
+	})
+
+	t.Run("no warning when only memory is set", func(t *testing.T) {
+		cfg := NewConfig()
+		cfg.Compute = []*Compute{
+			{
+				Memory: "2gb",
+			},
+		}
+
+		err, extraInfo := cfg.Validate(context.Background())
+		require.NoError(t, err)
+		assert.NotContains(t, extraInfo, "memory takes precedence over memory_mb")
+	})
 }
