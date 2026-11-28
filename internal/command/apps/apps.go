@@ -17,8 +17,10 @@ import (
 // New initializes and returns a new apps Command.
 func New() *cobra.Command {
 	const (
-		long  = "Manage your Fly applications."
-		short = "Manage apps."
+		long = `Create, list, restart, move and destroy Fly apps. Run ` + "`fly apps list`" + ` to see
+the apps you can access, or ` + "`fly launch`" + ` to create and deploy a new app from
+source code.`
+		short = "Manage Fly apps"
 	)
 
 	// TODO: list should also accept the --org param

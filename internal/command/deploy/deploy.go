@@ -204,10 +204,30 @@ type Command struct {
 
 func New() *Command {
 	const (
-		long = `Deploy Fly applications from source or an image using a local or remote builder.
+		long = `Build an image for an existing app, or use a prebuilt one, and roll it out
+to the app's Fly Machines. The app comes from --app, FLY_APP or the app
+field in fly.toml; pass a directory as the argument to deploy from there
+instead of the working directory. ` + "`fly deploy`" + ` doesn't create apps: use
+` + "`fly launch`" + ` for a new one. With no fly.toml, pass --app or set FLY_APP and
+the deploy uses the app's current deployed configuration.
 
-		To disable colorized output and show full Docker build output, set the environment variable NO_COLOR=1.
-	`
+The image comes from --image or the image setting in [build]; otherwise
+flyctl builds the source directory on a remote builder or with local Docker.
+--build-only stops after the build. If a release_command is configured, it
+runs first and a failure aborts the deploy. Machines are then updated with
+the [deploy] strategy, rolling by default.
+
+On an app's first deploy with services, flyctl allocates public IP
+addresses. If the services need a dedicated IPv4, which is billed, you're
+asked first; without a terminal none is allocated and the commands to add
+them are printed. You're also asked before replacing a Machine that has a
+volume when fly.toml has no [mounts] for its process group; pass --yes to
+skip that question, and without a terminal --yes is required. A [mounts]
+source that names a different volume than the Machine's stops the deploy,
+even with --yes.
+
+To disable colorized output and show full Docker build output, set the
+environment variable NO_COLOR=1.`
 		short = "Deploy Fly applications"
 	)
 
