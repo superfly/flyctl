@@ -8,7 +8,10 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long  = `Commands for managing IP addresses associated with an application`
+		long = `Allocate, list and release the IP addresses of an app. Public (Anycast)
+IPv4 and IPv6 addresses route internet traffic to the app's services;
+egress IPs give Machines a static outgoing address. Start with
+` + "`fly ips list`" + ` and ` + "`fly ips allocate`" + `.`
 		short = `Manage IP addresses for apps`
 	)
 
