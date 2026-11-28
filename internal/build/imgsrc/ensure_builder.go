@@ -614,9 +614,6 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 			var flapsErr *flaps.FlapsError
 			if errors.As(err, &flapsErr) {
 				message := err.Error()
-				if flapsErr.ResponseStatusCode == http.StatusConflict && strings.Contains(message, "machine still attempting to start") {
-					return nil, nil // Join the other caller's start in the readiness wait below.
-				}
 				if flapsErr.ResponseStatusCode == http.StatusPreconditionFailed &&
 					(strings.Contains(message, "machine still stopping, refusing to start") ||
 						strings.Contains(message, "machine still active, refusing to start") ||
@@ -633,6 +630,12 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 		err = flapsClient.Restart(ctx, appName, fly.RestartMachineInput{
 			ID: builderMachine.ID,
 		}, "")
+	}
+	if err != nil && (builderMachine.State == "stopped" || builderMachine.State == "stopping") {
+		var apiErr *flaps.FlapsError
+		if errors.As(err, &apiErr) && apiErr.ResponseStatusCode == http.StatusConflict && strings.Contains(apiErr.Error(), "machine still attempting to start") {
+			err = nil // Another caller started this builder. Wait for readiness below.
+		}
 	}
 	if err != nil {
 		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
