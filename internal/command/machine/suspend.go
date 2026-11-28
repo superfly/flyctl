@@ -93,9 +93,10 @@ func suspend(ctx context.Context, appName string, machine *fly.Machine, waitTime
 	}
 
 	if waitTimeout != 0 {
-		machine, err := client.Get(ctx, appName, machine.ID)
+		machineID := machine.ID // machine is nil if Get fails
+		machine, err := client.Get(ctx, appName, machineID)
 		if err != nil {
-			return fmt.Errorf("could not get Machine %s to wait for suspension: %w", machine.ID, err)
+			return fmt.Errorf("could not get Machine %s to wait for suspension: %w", machineID, err)
 		}
 		err = client.Wait(ctx, appName, machine.ID, flaps.WithWaitStates("suspended"), flaps.WithWaitTimeout(waitTimeout))
 		if err != nil {

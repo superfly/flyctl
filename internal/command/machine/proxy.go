@@ -7,6 +7,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -29,6 +30,12 @@ func newProxy() *cobra.Command {
 			Name:        "quiet",
 			Shorthand:   "q",
 			Description: "Don't print progress indicators for WireGuard",
+		},
+		flag.String{
+			Name:        flagnames.BindAddr,
+			Shorthand:   "b",
+			Default:     "127.0.0.1",
+			Description: "Local address to bind to. Use ::1 for IPv6, or 0.0.0.0 to accept connections from other hosts",
 		},
 	)
 
@@ -69,15 +76,15 @@ func runMachineProxy(ctx context.Context) error {
 		return err
 	}
 
-	// ports := strings.Split(args[0], ":")
+	return proxy.Connect(ctx, apiProxyParams(ctx, orgSlug, dialer))
+}
 
-	params := &proxy.ConnectParams{
+func apiProxyParams(ctx context.Context, orgSlug string, dialer agent.Dialer) *proxy.ConnectParams {
+	return &proxy.ConnectParams{
 		BindAddr:         flag.GetBindAddr(ctx),
 		Ports:            []string{"4280"},
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,
 		RemoteHost:       "_api.internal",
 	}
-
-	return proxy.Connect(ctx, params)
 }
