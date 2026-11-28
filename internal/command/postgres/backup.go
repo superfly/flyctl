@@ -439,9 +439,9 @@ func resolveRestoreTarget(ctx context.Context) string {
 		return target
 	}
 
-	if flag.GetBool(ctx, "restore-target-inclusive") {
-		target += fmt.Sprintf("&targetInclusive=%t", flag.GetBool(ctx, "restore-target-inclusive"))
-	}
+	// Postgres stops after the target unless told otherwise, so false has to be
+	// passed on too.
+	target += fmt.Sprintf("&targetInclusive=%t", flag.GetBool(ctx, "restore-target-inclusive"))
 
 	return target
 }

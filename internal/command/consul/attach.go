@@ -2,6 +2,7 @@ package consul
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -56,7 +57,7 @@ func runAttach(ctx context.Context) error {
 
 	consulPayload, err := apiClient.EnablePostgresConsul(ctx, appName)
 	if err != nil {
-		return nil
+		return fmt.Errorf("failed to enable consul for app %s: %w", appName, err)
 	}
 	secretsToSet := map[string]string{
 		secretName: consulPayload.ConsulURL,

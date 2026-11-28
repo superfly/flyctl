@@ -287,6 +287,7 @@ func newClusterInput(ctx context.Context, org *uiex.Organization, region *fly.Re
 	return &flypg.CreateClusterInput{
 		AppName:        params.Name,
 		Network:        params.Network,
+		ConsulURL:      flag.GetString(ctx, "consul-url"),
 		Organization:   org,
 		ImageRef:       params.ImageRef,
 		Region:         region.Code,
