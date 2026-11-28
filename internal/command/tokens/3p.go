@@ -226,7 +226,9 @@ func run3PAdd(ctx context.Context) error {
 		return err
 	}
 
-	m.Add3P(secret, loc)
+	if err := m.Add3P(secret, loc); err != nil {
+		return fmt.Errorf("failed to add third-party caveat: %w", err)
+	}
 
 	tok, err := m.Encode()
 	if err != nil {
