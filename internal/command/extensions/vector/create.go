@@ -71,23 +71,36 @@ func selectSimilarityFunction(ctx context.Context, defaultValue string) (functio
 }
 
 func selectEmbeddingModel(ctx context.Context, defaultValue string) (function *EmbeddingModel, err error) {
-	var options []string
+	var index int
+	if err = prompt.Select(ctx, &index, "Select an embedding model:", defaultValue, embeddingModelOptions()...); err == nil {
+		function = embeddingModelForOption(index)
+	}
 
-	options = append(options, "None - I will provide my own embeddings")
+	return
+}
+
+// embeddingModelOptions lists the choices for the embedding model prompt:
+// "None", then every model in order.
+func embeddingModelOptions() []string {
+	options := []string{"None - I will provide my own embeddings"}
 
 	for _, model := range embeddingModels {
 		options = append(options, model.Name)
 	}
 
-	var index int
-	if err = prompt.Select(ctx, &index, "Select an embedding model:", defaultValue, options...); err == nil {
-		if index != 0 {
-			function = &embeddingModels[index]
-		}
+	return options
+}
+
+// embeddingModelForOption returns the model at index in embeddingModelOptions,
+// or nil for "None".
+func embeddingModelForOption(index int) *EmbeddingModel {
+	if index == 0 {
+		return nil
 	}
 
-	return
+	return &embeddingModels[index-1]
 }
+
 func runCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 	params := extensions_core.ExtensionParams{}
@@ -125,8 +138,8 @@ func runCreate(ctx context.Context) (err error) {
 	if model != nil {
 		options["embedding_model"] = model.Identifier
 		options["dimension_count"] = model.Dimensions
-	} else {
-		prompt.Int(ctx, options["dimension_count"].(*int), "How many dimensions?", defaultDimensionCount, false)
+	} else if err := prompt.Int(ctx, &defaultDimensionCount, "How many dimensions?", defaultDimensionCount, false); err != nil {
+		return err
 	}
 
 	params.Options = options
