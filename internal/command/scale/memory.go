@@ -13,7 +13,15 @@ import (
 func newScaleMemory() *cobra.Command {
 	const (
 		short = "Set VM memory"
-		long  = `Set VM memory to a number of megabytes`
+		long  = `Set the memory of every active Machine in a process group. Give the size
+in megabytes (such as 2048) or with units (such as 2gb). Each Machine is
+updated in turn without a confirmation prompt; fly waits for each one to
+settle and, if it's running, to pass its health checks.
+
+Apps with more than one process group need ` + "`--process-group`" + `. If
+` + "`fly.toml`" + ` has a ` + "`[[vm]]`" + ` section with a different memory size, fly warns you,
+because the next ` + "`fly deploy`" + ` applies the ` + "`fly.toml`" + ` values; update
+` + "`fly.toml`" + ` to keep the change.`
 	)
 	cmd := command.New("memory [memoryMB]", short, long, runScaleMemory,
 		command.RequireSession,

@@ -21,8 +21,9 @@ func New() *cobra.Command {
 	const (
 		short = "Show version information for the flyctl command"
 
-		long = `Shows version information for the flyctl command itself, including version
-number and build date.`
+		long = `Print flyctl's version, operating system and architecture, commit and build
+date. --json prints the same information as JSON. To upgrade, run
+` + "`fly version upgrade`" + `.`
 	)
 
 	version := command.New("version", short, long, run)

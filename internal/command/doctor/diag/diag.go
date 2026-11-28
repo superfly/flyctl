@@ -30,14 +30,17 @@ var urlrx = regexp.MustCompile(`https://.*?/[0-9]+/([a-z0-9-]+).zip\\?`)
 
 func New() (cmd *cobra.Command) {
 	var (
-		short = `Send diagnostic information about your applications back to Fly.io.`
-		long  = `Send diagnostic information about your applications back to Fly.io,
-to help diagnose problems.
+		short = `Send diagnostic information to Fly.io support`
+		long  = `Collect diagnostics, upload them to Fly.io, and print a diagnostic code you
+can share with support. It uploads without asking for confirmation. Run it
+from the app's directory: without a fly.toml there, it stops unless --force
+is set.
 
-This command will collect some local system information and a few files
-that you'd be sending us anyways in order to deploy, notably any Dockerfiles
-you might have associated with this application.
-`
+The upload contains fly.toml and Dockerfile from the working directory, your
+flyctl config file minus lines containing tokens or "private", flyctl agent
+logs minus lines containing "private" or "password", the flyctl version,
+whether local Docker is reachable, and the total size of the working
+directory.`
 	)
 
 	cmd = command.New("diag", short, long, Run,

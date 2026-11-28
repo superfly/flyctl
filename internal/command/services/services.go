@@ -8,8 +8,9 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long  = `Shows information about the services of the application.`
-		short = `Show the application's services`
+		long = `See the network services configured on an app's Machines. Run
+` + "`fly services list`" + ` to list them.`
+		short = `Show an app's services`
 	)
 
 	services := command.New("services", short, long, nil)
