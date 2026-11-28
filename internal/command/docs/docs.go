@@ -14,8 +14,8 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long = `View Fly documentation on the Fly.io website. This command will open a
-browser to view the content.
+		long = `Open the Fly.io documentation at https://docs.fly.io/ in your default
+web browser. Takes no arguments.
 `
 		short = "View Fly documentation"
 	)

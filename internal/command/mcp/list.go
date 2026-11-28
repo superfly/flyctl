@@ -14,7 +14,12 @@ import (
 func newList() *cobra.Command {
 	const (
 		short = "[experimental] List MCP servers"
-		long  = short + "\n"
+		long  = `List the MCP servers configured in local MCP client config files, grouped by
+file. Without a client flag (such as ` + "`--claude`" + `), the config files of all
+known clients are read; missing files are skipped. For each server it shows
+the details flyctl can read from its entry, such as the URL and app name.
+Use ` + "`--json`" + ` for machine-readable output.
+`
 		usage = "list"
 	)
 

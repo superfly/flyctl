@@ -16,7 +16,19 @@ import (
 func NewDestroy() *cobra.Command {
 	const (
 		short = "[experimental] Destroy an MCP stdio server"
-		long  = short + "\n"
+		long  = `Destroy the Fly app that runs an MCP server, with ` + "`fly apps destroy`" + `. This
+permanently deletes the app, its Machines, and its volumes with all the
+data on them. You are asked to confirm unless you pass ` + "`--yes`" + `.
+
+The app is taken from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml. Otherwise it is
+worked out from the server's URL in an MCP client config: pass ` + "`--server`" + `
+and one client flag (such as ` + "`--claude`" + `) to say which entry.
+
+If you pass a client flag or ` + "`--config`" + `, or the app was worked out from a
+client config, ` + "`fly mcp remove`" + ` then removes an entry. It doesn't look the
+entry up by app, so pass one client flag and ` + "`--server`" + ` to be sure the
+right one is removed.
+`
 		usage = "destroy"
 	)
 

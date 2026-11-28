@@ -42,8 +42,22 @@ type ConfigPath struct {
 
 func NewAdd() *cobra.Command {
 	const (
-		short = "[experimental] Add MCP proxy client to a MCP client configuration"
-		long  = short + "\n"
+		short = "[experimental] Add an app's MCP server to MCP client configs"
+		long  = `Add an entry for an MCP server running on a Fly app to the config file of
+each MCP client you name with a client flag (such as ` + "`--claude`" + ` or
+` + "`--cursor`" + `) or ` + "`--config`" + `. The entry runs ` + "`fly mcp proxy`" + ` and is named
+after the app unless you pass ` + "`--server`" + `. An existing entry with the same
+name is replaced. The command fails unless you pass a client flag or
+` + "`--config`" + `.
+
+The server URL is the app's public URL, the app's .flycast address with
+` + "`--flycast`" + `, or ` + "`--url`" + `. By default a random bearer token is
+generated, stored in the app's FLY_MCP_BEARER_TOKEN secret and written into
+the client entry. With ` + "`--user`" + `, FLY_MCP_USER and FLY_MCP_PASSWORD are
+set instead, and you are prompted for the password if ` + "`--password`" + ` is
+not given. Secrets are set with ` + "`fly secrets set`" + `, which restarts the
+app's Machines if it has been deployed.
+`
 		usage = "add"
 	)
 
@@ -102,8 +116,18 @@ func NewAdd() *cobra.Command {
 
 func NewRemove() *cobra.Command {
 	const (
-		short = "[experimental] Remove MCP proxy client from a MCP client configuration"
-		long  = short + "\n"
+		short = "[experimental] Remove an MCP server from an MCP client config"
+		long  = `Remove a named MCP server entry from one MCP client config file. Nothing is
+changed on Fly.io; to also destroy the app, use ` + "`fly mcp destroy`" + `.
+
+Say which file to change with one client flag (such as ` + "`--claude`" + `), and
+name the entry with ` + "`--server`" + `. Without a client flag, even if you pass
+` + "`--config`" + `, the config files of all known clients are considered, and you
+choose one if more than one has servers. Without ` + "`--server`" + `, the server is
+picked for you if there is only one, or you choose from a list; ` + "`--app`" + `
+doesn't select it. Without a terminal, pass the client flag and ` + "`--server`" + `
+when there is more than one choice.
+`
 		usage = "remove"
 	)
 	cmd := command.New(usage, short, long, runRemove, command.LoadAppNameIfPresent)
