@@ -52,6 +52,10 @@ func TestEnsureTransitioningBuilder(t *testing.T) {
 		direct       bool
 	}
 	tests := []testCase{
+		{name: "stopped builder now starting", initialState: "stopped", steps: []step{failure("POST", start.path, 409, "aborted: machine still attempting to start"), ready}},
+		{name: "concurrent start never reaches ready", initialState: "stopped", steps: []step{failure("POST", start.path, 409, "aborted: machine still attempting to start"), failure("GET", ready.path, 408, "timed out")}, want: "timed out"},
+		{name: "different conflict mentions an in-progress start", initialState: "stopped", steps: []step{failure("POST", start.path, 409, "aborted: machine still attempting to start its replacement")}, want: "its replacement"},
+		{name: "stopped builder lease conflict", initialState: "stopped", steps: []step{failure("POST", start.path, 409, "machine lease held")}, want: "machine lease"},
 		{name: "already starting", initialState: "starting", steps: []step{ready}},
 		{name: "start never completes", initialState: "starting", steps: []step{failure("GET", ready.path, 408, "timed out")}, want: "timed out"},
 		{name: "stop completes", steps: []step{wait, start, ready}},
