@@ -19,6 +19,16 @@ import (
 	"github.com/superfly/macaroon/tp"
 )
 
+// mustCommit commits a refresh and reports whether updated was applied.
+func mustCommit(t *testing.T, m *tokenMonitor, cached, before, updated *tokens.Tokens, path string) bool {
+	t.Helper()
+
+	applied, err := commitTokenRefresh(m, cached, before, updated, path)
+	require.NoError(t, err)
+
+	return applied
+}
+
 func TestRefreshDoesNotOverwriteLogin(t *testing.T) {
 	for name, syncFirst := range map[string]bool{"refresh-before-sync": false, "sync-before-refresh": true} {
 		t.Run(name, func(t *testing.T) {
@@ -31,14 +41,16 @@ func TestRefreshDoesNotOverwriteLogin(t *testing.T) {
 			if syncFirst {
 				require.NoError(t, syncConfigTokens(&m, cached))
 			}
-			require.NoError(t, commitTokenRefresh(&m, cached, before, updated, path))
+			// The caller is told its refresh was thrown away, whichever of the
+			// two checks rejected it.
+			require.False(t, mustCommit(t, &m, cached, before, updated, path))
 			// No watcher or subsequent session sync: a rejected refresh must
 			// adopt disk credentials so the next refresh can make progress.
 			require.Equal(t, "fo1_login", cached.All())
 			disk, err := ReadAccessToken(path)
 			require.NoError(t, err)
 			require.Equal(t, "fo1_login", disk)
-			require.NoError(t, commitTokenRefresh(&m, cached, cached.Copy(), tokens.ParseFromFile("fo1_next", path), path))
+			require.True(t, mustCommit(t, &m, cached, cached.Copy(), tokens.ParseFromFile("fo1_next", path), path))
 			disk, err = ReadAccessToken(path)
 			require.NoError(t, err)
 			require.Equal(t, "fo1_next", disk)
@@ -56,7 +68,7 @@ func TestRefreshCommit(t *testing.T) {
 	require.NoError(t, SetAccessToken(path, "Bearer fo1_old"))
 	require.NoError(t, SetMetricsToken(path, "unrelated"))
 	m := tokenMonitor{disk: cached.Copy()}
-	require.NoError(t, commitTokenRefresh(&m, cached, before, updated, path))
+	require.True(t, mustCommit(t, &m, cached, before, updated, path))
 	disk, err := ReadAccessToken(path)
 	require.NoError(t, err)
 	require.Equal(t, "fo1_refreshed", disk)
@@ -67,12 +79,12 @@ func TestRefreshCommit(t *testing.T) {
 
 	// After persistence is disabled, unchanged disk must not undo memory refresh.
 	updated = tokens.ParseFromFile("fo1_next", path)
-	require.NoError(t, commitTokenRefresh(&m, cached, cached.Copy(), updated, ""))
+	require.True(t, mustCommit(t, &m, cached, cached.Copy(), updated, ""))
 	require.NoError(t, syncConfigTokens(&m, cached))
 	require.Equal(t, "fo1_next", cached.All())
 	// Preserve SetAccessToken's existing behavior when the file was removed.
 	require.NoError(t, os.Remove(path))
-	require.NoError(t, commitTokenRefresh(&m, cached, cached.Copy(), updated, path))
+	require.True(t, mustCommit(t, &m, cached, cached.Copy(), updated, path))
 	disk, err = ReadAccessToken(path)
 	require.NoError(t, err)
 	require.Equal(t, "fo1_next", disk)
@@ -237,12 +249,12 @@ func TestCompletedDischargeConflicts(t *testing.T) {
 	require.NoError(t, SetAccessToken(path, partial.All()))
 	cached := partial.Copy()
 	m := tokenMonitor{disk: partial.Copy()}
-	require.NoError(t, commitTokenRefresh(&m, cached, original, complete, path))
+	require.True(t, mustCommit(t, &m, cached, original, complete, path))
 	require.True(t, cached.Equal(complete))
 	// Reverse ordering: a stale partial refresh must adopt the completed result.
 	cached = original.Copy()
 	m = tokenMonitor{disk: original.Copy()}
-	require.NoError(t, commitTokenRefresh(&m, cached, original, partial, path))
+	require.False(t, mustCommit(t, &m, cached, original, partial, path))
 	require.True(t, cached.Equal(complete))
 	disk, err := ReadAccessToken(path)
 	require.NoError(t, err)
@@ -258,7 +270,7 @@ func TestCompletedDischargeConflicts(t *testing.T) {
 			require.NoError(t, SetAccessToken(path, current.All()))
 			cached := original.Copy()
 			m := tokenMonitor{disk: original.Copy()}
-			require.NoError(t, commitTokenRefresh(&m, cached, original, complete, path))
+			require.False(t, mustCommit(t, &m, cached, original, complete, path))
 			require.True(t, cached.Equal(current))
 		})
 	}

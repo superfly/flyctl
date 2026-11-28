@@ -322,3 +322,29 @@ query ListOrganizationAddOns($orgSlug: String!, $addOnType: AddOnType) {
 			}
 		}
   }
+
+# The org-token check (internal/config/tokens.go) reads two fields of each organization. It asks for nothing else
+# because web runs extra queries per organization for fields like viewerRole and billable. The two operations are
+# the same query under different names, so web's logs can tell a command starting from the background timer.
+#
+# internalNumericId is a BigInt, which web sends as a JSON string, so it's bound to string here and not to the
+# int64 that genqlient.yaml maps BigInt to.
+query OrgTokenCheckStartup {
+	organizations {
+		nodes {
+			id
+			# @genqlient(bind: "string")
+			internalNumericId
+		}
+	}
+}
+
+query OrgTokenCheckPeriodic {
+	organizations {
+		nodes {
+			id
+			# @genqlient(bind: "string")
+			internalNumericId
+		}
+	}
+}

@@ -10,7 +10,9 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -100,6 +102,21 @@ func (state *launchState) Org(ctx context.Context) (*uiex.Organization, error) {
 	}
 
 	return org, nil
+}
+
+// ensureOrgToken gets this command a token for the plan's organization if it
+// holds none. The Launch UI lets the user pick an organization they created or
+// joined after this command started, which is after it last asked web which
+// organizations to hold tokens for, and the app is created with those tokens.
+func (state *launchState) ensureOrgToken(ctx context.Context) {
+	org, err := state.orgCompact(ctx)
+	if err != nil {
+		// Whatever needs the organization next reports this.
+		return
+	}
+	if err := config.EnsureOrgToken(ctx, config.Tokens(ctx), org.InternalNumericID); err != nil {
+		logger.FromContext(ctx).Debugf("failed to get a token for organization %s: %v", org.Slug, err)
+	}
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
