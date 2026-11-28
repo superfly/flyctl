@@ -53,6 +53,19 @@ const (
 	TokenTimeout = 30 * 24 * time.Hour // 30 days
 )
 
+// StdoutJSONAnnotation marks a command whose JSON output must be the only thing
+// on stdout. When such a command runs in JSON mode, the CLI sends every other
+// byte the process writes to stderr.
+const StdoutJSONAnnotation = "stdoutJSON"
+
+// MarkStdoutJSON sets StdoutJSONAnnotation on cmd.
+func MarkStdoutJSON(cmd *cobra.Command) {
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+	cmd.Annotations[StdoutJSONAnnotation] = "true"
+}
+
 func New(usage, short, long string, fn Runner, p ...preparers.Preparer) *cobra.Command {
 	return &cobra.Command{
 		Use:   usage,

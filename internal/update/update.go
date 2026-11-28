@@ -43,7 +43,7 @@ func Check() bool {
 		return false
 	case !buildinfo.IsRelease(), env.IsCI():
 		return false
-	case !cmdutil.IsTerminal(os.Stdout), !cmdutil.IsTerminal(os.Stderr):
+	case !cmdutil.IsTerminal(iostreams.Stdout), !cmdutil.IsTerminal(os.Stderr):
 		return false
 	default:
 		return true

@@ -2,14 +2,17 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"html/template"
+	io2 "io"
 	"os"
 	"regexp"
 	"runtime/debug"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,7 +21,9 @@ import (
 	"github.com/kr/text"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	clientsignals "github.com/superfly/client-signals/go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
@@ -42,9 +47,42 @@ import (
 
 // Run runs the command line interface with the given arguments and reports the
 // exit code the application should exit with.
+//
+// Run changes process-wide output state (os.Stdout and the default logger). In
+// text mode it restores that state when it returns. In JSON mode it leaves
+// both pointing at stderr, because background work that outlives the 5s task
+// shutdown (metrics, for one) may still log after Run returns and before main
+// exits. A panic never restores it, so the crash report main prints follows
+// the same routing.
 func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
+	stdout, defaultLogger := os.Stdout, term2.DefaultLogger
+	code, jsonMode := run(ctx, io, args...)
+	if !jsonMode {
+		os.Stdout, term2.DefaultLogger = stdout, defaultLogger
+	}
+
+	return code
+}
+
+func run(ctx context.Context, io *iostreams.IOStreams, args ...string) (code int, jsonMode bool) {
 	setNeverPromptFromEnv(io)
 	ctx = iostreams.NewContext(ctx, io)
+
+	// The client signals look at os.Stdout to tell whether a person is at a
+	// terminal, so detect them while it is still the process's real stdout.
+	clientsignals.DetectOnce()
+
+	// Nothing may reach stdout before we know whether it is reserved for a JSON
+	// document, which takes loading the config and building the command tree.
+	held, decided := holdStdout(), false
+	defer func() {
+		// Only a panic gets here undecided. Treat it as JSON mode: diagnostics
+		// on stderr, and the crash report main prints with them.
+		if !decided {
+			held.release(io.ErrOut)
+			os.Stdout = os.Stderr
+		}
+	}()
 
 	err := logger.InitLogFile()
 	if err != nil {
@@ -66,8 +104,6 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	defer httptracing.Finish()
 
 	cmd := root.New()
-	cmd.SetOut(io.Out)
-	cmd.SetErr(io.ErrOut)
 
 	// Special case for the launch command, support `flyctl launch args -- [subargs]`
 	// and `flyctl mcp wrap --mcp script -- [subargs]`
@@ -81,6 +117,29 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 			args = args[:index]
 		}
 	}
+
+	// diagOut is where usage and other non-error text goes.
+	diagOut := io.Out
+	decided = true
+	jsonMode = stdoutJSONMode(cmd, args)
+	if jsonMode {
+		// From here on, the only writer that reaches the real stdout is io.Out,
+		// which the command uses for its JSON document. Everything else that
+		// writes to os.Stdout or the default logger lands on stderr.
+		held.release(io.ErrOut)
+		os.Stdout = os.Stderr
+		term2.SetLogOutput(io.ErrOut)
+		diagOut = io.ErrOut
+	} else {
+		held.release(nil)
+	}
+
+	if v := os.Getenv(testPanicEnv); v != "" {
+		panic(v)
+	}
+
+	cmd.SetOut(diagOut)
+	cmd.SetErr(io.ErrOut)
 
 	cmd.SetArgs(args)
 	cmd.SilenceErrors = true
@@ -107,32 +166,210 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	var childExit *tracecmd.ExitError
 	switch {
 	case errors.As(err, &childExit):
-		return childExit.Code
+		return childExit.Code, jsonMode
 	case err == nil:
-		return 0
+		return 0, jsonMode
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
-		return 127
+		return 127, jsonMode
 	case errors.Is(err, context.DeadlineExceeded):
 		printError(io, cs, cmd, err)
 
-		return 126
+		return 126, jsonMode
 	case isUnchangedError(err):
 		// This means the deployment was a noop, which is noteworthy but not something we should
 		// fail CI on. Print a warning and exit 0. Remove this once we're fully on Machines!
 		printError(io, cs, cmd, err)
 
-		return 0
+		return 0, jsonMode
 	default:
 		printError(io, cs, cmd, err)
 
 		_, _, e := cmd.Find(args)
 		if e != nil {
-			fmt.Printf("Run '%v --help' for usage.\n", cmd.CommandPath())
-			fmt.Println()
+			fmt.Fprintf(diagOut, "Run '%v --help' for usage.\n", cmd.CommandPath())
+			fmt.Fprintln(diagOut)
 		}
 
-		return 1
+		return 1, jsonMode
 	}
+}
+
+// testPanicEnv makes the CLI panic once its output routing is decided, so
+// subprocess tests can check where the crash report goes.
+const testPanicEnv = "FLYCTL_TEST_PANIC"
+
+// heldStdout collects what the process writes to stdout, directly or through
+// the default logger, until release.
+type heldStdout struct {
+	stdout *os.File
+	logger *logger.Logger
+	w      *os.File
+	done   chan struct{}
+	buf    bytes.Buffer
+}
+
+func holdStdout() *heldStdout {
+	r, w, err := os.Pipe()
+	if err != nil {
+		return nil // nothing is held, so text goes where it always went
+	}
+	h := &heldStdout{stdout: os.Stdout, logger: term2.DefaultLogger, w: w, done: make(chan struct{})}
+	go func() {
+		defer close(h.done)
+		_, _ = io2.Copy(&h.buf, r)
+		_ = r.Close()
+	}()
+	os.Stdout = w
+	term2.SetLogOutput(w)
+
+	return h
+}
+
+// release restores stdout and the default logger, and writes what was held to
+// dst, or to the original stdout when dst is nil.
+func (h *heldStdout) release(dst io2.Writer) {
+	if h == nil {
+		return
+	}
+	os.Stdout, term2.DefaultLogger = h.stdout, h.logger
+	_ = h.w.Close()
+	<-h.done
+	if dst == nil {
+		dst = h.stdout
+	}
+	_, _ = dst.Write(h.buf.Bytes())
+}
+
+// stdoutJSONMode reports whether args run a command marked with
+// command.StdoutJSONAnnotation in JSON mode: --json is true or malformed (so
+// that the usage error stays off stdout), or it is unset and FLY_JSON is true.
+// Cobra resolves the command and parses the flags, into copies so that the
+// real parse is unaffected. When another flag fails to parse, the JSON flag's
+// own occurrences in the arguments decide, so a usage error without JSON
+// intent stays where it always was.
+func stdoutJSONMode(root *cobra.Command, args []string) bool {
+	target, rest, err := root.Find(args)
+	if err != nil || target == nil || target.Annotations[command.StdoutJSONAnnotation] != "true" {
+		return false
+	}
+
+	target.InitDefaultHelpFlag()
+	target.InitDefaultVersionFlag()
+	_ = target.InheritedFlags() // merges the parents' persistent flags into target.Flags()
+
+	fs := pflag.NewFlagSet(target.Name(), pflag.ContinueOnError)
+	fs.SetOutput(io2.Discard)
+	fs.SetNormalizeFunc(target.Flags().GetNormalizeFunc())
+	fs.ParseErrorsWhitelist = pflag.ParseErrorsWhitelist(target.FParseErrWhitelist)
+	target.Flags().VisitAll(func(f *pflag.Flag) {
+		fs.AddFlag(&pflag.Flag{
+			Name:        f.Name,
+			Shorthand:   f.Shorthand,
+			NoOptDefVal: f.NoOptDefVal,
+			Value:       &probeValue{typ: f.Value.Type(), val: f.DefValue},
+		})
+	})
+	if target.DisableFlagParsing {
+		return env.IsTruthy("FLY_JSON")
+	}
+	value, set := "", false
+	if err := fs.Parse(rest); err != nil {
+		value, set = jsonFlagValue(fs, rest)
+	} else if fs.Changed(flagnames.JSONOutput) {
+		value, set = fs.Lookup(flagnames.JSONOutput).Value.String(), true
+	}
+	if !set {
+		return env.IsTruthy("FLY_JSON")
+	}
+	v, err := strconv.ParseBool(value)
+
+	return err != nil || v
+}
+
+// jsonFlagValue finds the last value args give the JSON flag, walking them as
+// pflag does: "--json" or "-j" grouped with other shorthands is "true", a
+// "=value" is that value, and an argument consumed as another flag's value or
+// following "--" is not a flag. Unknown flags are taken to have no value.
+func jsonFlagValue(fs *pflag.FlagSet, args []string) (value string, set bool) {
+	takesValue := func(f *pflag.Flag) bool { return f != nil && f.NoOptDefVal == "" }
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		switch {
+		case a == "--":
+			return value, set
+		case strings.HasPrefix(a, "--"):
+			name, v, hasValue := strings.Cut(a[2:], "=")
+			f := fs.Lookup(name)
+			switch {
+			case f != nil && f.Name == flagnames.JSONOutput:
+				value, set = "true", true
+				if hasValue {
+					value = v
+				}
+			case !hasValue && takesValue(f):
+				i++ // the next argument is this flag's value
+			}
+		case strings.HasPrefix(a, "-") && len(a) > 1:
+			shorthands := a[1:]
+			for j := 0; j < len(shorthands); j++ {
+				f := fs.ShorthandLookup(shorthands[j : j+1])
+				if f == nil {
+					break
+				}
+				rest := shorthands[j+1:]
+				if f.Name == flagnames.JSONOutput {
+					value, set = "true", true
+					if strings.HasPrefix(rest, "=") {
+						value = rest[1:]
+
+						break
+					}
+
+					continue
+				}
+				if takesValue(f) {
+					if rest == "" {
+						i++ // the next argument is this flag's value
+					}
+
+					break
+				}
+				if strings.HasPrefix(rest, "=") {
+					break
+				}
+			}
+		}
+	}
+
+	return value, set
+}
+
+// probeValue stands in for a flag's value while stdoutJSONMode parses: it
+// rejects what the real value would reject for the common scalar types, and
+// keeps the raw text.
+type probeValue struct{ typ, val string }
+
+func (v *probeValue) String() string { return v.val }
+func (v *probeValue) Type() string   { return v.typ }
+
+func (v *probeValue) Set(s string) (err error) {
+	switch v.typ {
+	case "bool":
+		_, err = strconv.ParseBool(s)
+	case "int", "int8", "int16", "int32", "int64":
+		_, err = strconv.ParseInt(s, 0, 64)
+	case "uint", "uint8", "uint16", "uint32", "uint64":
+		_, err = strconv.ParseUint(s, 0, 64)
+	case "float32", "float64":
+		_, err = strconv.ParseFloat(s, 64)
+	case "duration":
+		_, err = time.ParseDuration(s)
+	}
+	if err == nil {
+		v.val = s
+	}
+
+	return err
 }
 
 // setNeverPromptFromEnv turns prompts off when FLY_NO_PROMPT is truthy, for

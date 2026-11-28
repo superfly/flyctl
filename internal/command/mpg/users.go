@@ -92,7 +92,7 @@ To give an app a connection string for the new user, use
 	)
 
 	cmd := command.New(usage, short, long, runUsersCreate,
-		command.RequireSession,
+		requireMutationSession,
 		requireMacaroonToken,
 	)
 
@@ -111,11 +111,18 @@ To give an app a connection string for the new user, use
 		},
 	)
 
+	addStdoutJSONFlag(cmd, "JSON output (name, role; progress on stderr)",
+		`  out=$(fly mpg users create "$cluster_id" --username app_user --role writer --json) || { echo "$out" >&2; exit 1; }
+  username=$(printf '%s' "$out" | jq -er '.name | select(. != "")') || exit 1`)
+
 	return cmd
 }
 
 func runUsersCreate(ctx context.Context) error {
 	clusterID := flag.FirstArg(ctx)
+	if config.FromContext(ctx).JSONOutput && clusterID == "" {
+		return prompt.NonInteractiveError("CLUSTER_ID must be specified when using --json")
+	}
 	cluster, _, err := ClusterFromArgOrSelect(ctx, clusterID, "")
 	if err != nil {
 		return err

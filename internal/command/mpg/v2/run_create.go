@@ -2,18 +2,21 @@ package cmdv2
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/internal/tracing"
 	"net/url"
 	"strconv"
 	"time"
 
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/requestauth"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -59,6 +62,14 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	_ = orgRawSlug
 
 	io := iostreams.FromContext(ctx)
+	jsonOutput := config.FromContext(ctx).JSONOutput
+	out := io.Out
+	if jsonOutput {
+		out = io.ErrOut
+		if flag.GetString(ctx, "region") == "" {
+			return prompt.NonInteractiveError("--region must be specified when using --json")
+		}
+	}
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	// Get available MPG regions from the public Machines API region list.
@@ -136,17 +147,17 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 	var connectionURI string
 
 	// Output plan details after creation
-	fmt.Fprintf(io.Out, "Selected Plan: %s\n", planDisplay.Name)
-	fmt.Fprintf(io.Out, "  CPU: %s\n", planDisplay.CPU)
-	fmt.Fprintf(io.Out, "  Memory: %s\n", planDisplay.Memory)
-	fmt.Fprintf(io.Out, "  Price: $%d per month\n\n", planDisplay.PricePerMo)
+	fmt.Fprintf(out, "Selected Plan: %s\n", planDisplay.Name)
+	fmt.Fprintf(out, "  CPU: %s\n", planDisplay.CPU)
+	fmt.Fprintf(out, "  Memory: %s\n", planDisplay.Memory)
+	fmt.Fprintf(out, "  Price: $%d per month\n\n", planDisplay.PricePerMo)
 
 	// Wait for cluster to be ready
-	fmt.Fprintf(io.Out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, clusterID)
-	fmt.Fprintf(io.Out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, clusterID)
-	fmt.Fprintf(io.Out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
-	fmt.Fprintf(io.Out, "Once ready, you can connect to the database with: fly mpg connect %s\n\n", clusterID)
-	if err := tracing.WorkflowPhase(ctx, "wait_for_ready", func(ctx context.Context) error {
+	fmt.Fprintf(out, "Waiting for cluster %s (%s) to be ready...\n", params.Name, clusterID)
+	fmt.Fprintf(out, "You can view the cluster in the UI at: https://fly.io/dashboard/%s/managed_postgres/%s\n", params.OrgSlug, clusterID)
+	fmt.Fprintf(out, "You can cancel this wait with Ctrl+C - the cluster will continue provisioning in the background.\n")
+	fmt.Fprintf(out, "Once ready, you can connect to the database with: fly mpg connect %s\n\n", clusterID)
+	waitErr := tracing.WorkflowPhase(ctx, "wait_for_ready", func(ctx context.Context) error {
 		for {
 			res, err := flapsClient.GetManagedPostgresCluster(ctx, clusterID)
 			if err != nil {
@@ -156,9 +167,13 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 			if res.ID == "" {
 				return fmt.Errorf("invalid cluster response: no cluster ID")
 			}
+			cluster.Status = res.Status
 
 			switch res.Status {
 			case flaps.ManagedPostgresStatusReady:
+				if jsonOutput {
+					return nil
+				}
 				creds, credErr := flapsClient.GetManagedPostgresUserCredentials(ctx, clusterID, flyUser)
 				if credErr != nil {
 					return fmt.Errorf("failed retrieving credentials for cluster %s: %w", clusterID, credErr)
@@ -182,23 +197,56 @@ func RunCreate(ctx context.Context, orgRawSlug string, params *CreateClusterPara
 				break
 			}
 
-			time.Sleep(5 * time.Second)
+			if jsonOutput {
+				timer := time.NewTimer(5 * time.Second)
+				select {
+				case <-ctx.Done():
+					timer.Stop()
+					return ctx.Err()
+				case <-timer.C:
+				}
+			} else {
+				time.Sleep(5 * time.Second)
+			}
 		}
 
 		return nil
-	}); err != nil {
-		return err
+	})
+
+	if jsonOutput {
+		// Creation was accepted: preserve the ID and last known API status even
+		// when the wait fails, so callers can recover without creating again.
+		if err := render.JSON(io.Out, mpgutil.ClusterResult{
+			ID: clusterID, Name: params.Name, Organization: mpgutil.ClusterOrganization{Name: cluster.Organization.Name, Slug: params.OrgSlug},
+			Region: cluster.Region, Plan: params.Plan, Status: cluster.Status,
+		}); err != nil {
+			return fmt.Errorf("cluster %s was created, but its result could not be displayed: %w", clusterID, err)
+		}
+		if waitErr != nil {
+			err := fmt.Errorf("cluster %s was created, but waiting for readiness failed: %w", clusterID, waitErr)
+			// The CLI silently exits 127 for cancellation, so print its error here.
+			if errors.Is(waitErr, context.Canceled) {
+				fmt.Fprintf(io.ErrOut, "Error: %s\n", err)
+			}
+
+			return err
+		}
+
+		return nil
+	}
+	if waitErr != nil {
+		return waitErr
 	}
 
-	fmt.Fprintf(io.Out, "\nManaged Postgres cluster created successfully!\n")
-	fmt.Fprintf(io.Out, "  ID: %s\n", clusterID)
-	fmt.Fprintf(io.Out, "  Name: %s\n", params.Name)
-	fmt.Fprintf(io.Out, "  Organization: %s\n", params.OrgSlug)
-	fmt.Fprintf(io.Out, "  Region: %s\n", cluster.Region)
-	fmt.Fprintf(io.Out, "  Plan: %s\n", params.Plan)
-	fmt.Fprintf(io.Out, "  Volume Size: %dGB\n", cluster.DiskSizeGB)
-	fmt.Fprintf(io.Out, "  PostGIS: %t\n", cluster.PostGISEnabled)
-	fmt.Fprintf(io.Out, "  Connection string: %s\n", connectionURI)
+	fmt.Fprintf(out, "\nManaged Postgres cluster created successfully!\n")
+	fmt.Fprintf(out, "  ID: %s\n", clusterID)
+	fmt.Fprintf(out, "  Name: %s\n", params.Name)
+	fmt.Fprintf(out, "  Organization: %s\n", params.OrgSlug)
+	fmt.Fprintf(out, "  Region: %s\n", cluster.Region)
+	fmt.Fprintf(out, "  Plan: %s\n", params.Plan)
+	fmt.Fprintf(out, "  Volume Size: %dGB\n", cluster.DiskSizeGB)
+	fmt.Fprintf(out, "  PostGIS: %t\n", cluster.PostGISEnabled)
+	fmt.Fprintf(out, "  Connection string: %s\n", connectionURI)
 
 	return nil
 }

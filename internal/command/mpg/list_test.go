@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
@@ -71,4 +72,43 @@ func TestRunListUsesMergedMachinesAndLegacyResults(t *testing.T) {
 	require.Equal(t, "raw-personal", clusters[0].Organization.Slug)
 	require.Equal(t, "mpg-v1", clusters[1].Id)
 	require.Equal(t, 1, clusters[1].Version)
+}
+
+func TestListJSONOrganizationName(t *testing.T) {
+	for _, legacyName := range []string{"", "My Org"} {
+		t.Run("legacy-name="+legacyName, func(t *testing.T) {
+			ios, _, stdout, _ := iostreams.Test()
+			ctx := config.NewContext(iostreams.NewContext(context.Background(), ios), &config.Config{JSONOutput: true})
+			cmd := newList()
+			require.NoError(t, cmd.Flags().Parse([]string{"--org", "my-org", "--json"}))
+			ctx = flagctx.NewContext(ctx, cmd.Flags())
+			ctx = uiexutil.NewContextWithClient(ctx, &mock.UiexClient{
+				GetOrganizationFunc: func(context.Context, string) (*uiex.Organization, error) {
+					return &uiex.Organization{Name: "My Org", Slug: "my-org", RawSlug: "my-org"}, nil
+				},
+			})
+			ctx = flapsutil.NewContextWithClient(ctx, &mock.FlapsClient{
+				ListManagedPostgresClustersFunc: func(context.Context, flaps.ListManagedPostgresClustersRequest) ([]flaps.ManagedPostgresClusterSummary, error) {
+					return []flaps.ManagedPostgresClusterSummary{{ID: "new-id"}}, nil
+				},
+			})
+			ctx = mpgv1.NewContextWithClient(ctx, &mock.MpgV1Client{
+				ListManagedClustersFunc: func(context.Context, string, bool) (mpgv1.ListManagedClustersResponse, error) {
+					var clusters []mpgv1.ManagedCluster
+					if legacyName != "" {
+						clusters = append(clusters, mpgv1.ManagedCluster{Id: "new-id", Organization: fly.Organization{Name: legacyName, Slug: "my-org"}})
+					}
+					return mpgv1.ListManagedClustersResponse{Data: clusters}, nil
+				},
+			})
+
+			require.NoError(t, runList(ctx))
+			var clusters []mpgv1.ManagedCluster
+			require.NoError(t, json.Unmarshal(stdout.Bytes(), &clusters))
+			require.Len(t, clusters, 1)
+			require.Equal(t, "new-id", clusters[0].Id)
+			require.Equal(t, "my-org", clusters[0].Organization.Slug)
+			require.Equal(t, legacyName, clusters[0].Organization.Name)
+		})
+	}
 }

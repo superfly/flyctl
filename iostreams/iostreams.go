@@ -472,3 +472,8 @@ func appendMissingCharacter(msg string, char byte) string {
 
 	return string(buff)
 }
+
+// Stdout is the process's stdout as it was when the program started. The CLI
+// points os.Stdout at stderr in JSON mode, so decisions about whether stdout
+// is a terminal use this instead.
+var Stdout = os.Stdout
