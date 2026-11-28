@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"maps"
 	"net"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -273,7 +275,8 @@ func run(ctx context.Context) error {
 	signal.Notify(stp, syscall.SIGINT, syscall.SIGTERM)
 
 	return sendProbes(count, ticker.C, stp, max(interval, time.Second), func(seq int) error {
-		for target := range targets {
+		// The region lookups above add targets while probes are sent.
+		for _, target := range targetAddrs(&mu, targets) {
 			// BUG(tqbf): stop re-parsing these stupid addresses
 			_, err := pinger.WriteTo(EchoRequest(0, seq, time.Now(), pad), &net.IPAddr{IP: net.ParseIP(target)})
 			if err != nil {
@@ -283,6 +286,15 @@ func run(ctx context.Context) error {
 
 		return nil
 	})
+}
+
+// targetAddrs copies the addresses in targets under mu, so they can be probed
+// without holding the lock.
+func targetAddrs(mu *sync.RWMutex, targets map[string]string) []string {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	return slices.Collect(maps.Keys(targets))
 }
 
 // sendProbes calls send on every tick, count times or until stopped if count

@@ -1,7 +1,9 @@
 package ping
 
 import (
+	"fmt"
 	"os"
+	"sync"
 	"syscall"
 	"testing"
 	"testing/synctest"
@@ -50,4 +52,26 @@ func TestSendProbesUntilStopped(t *testing.T) {
 		}))
 		require.Equal(t, 5, sent)
 	})
+}
+
+// Region lookups add targets while probes are sent; reading them must not race
+// with that. Run with -race.
+func TestTargetAddrsWhileTargetsChange(t *testing.T) {
+	var mu sync.RWMutex
+	targets := map[string]string{"fdaa::1": "app"}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := range 1000 {
+			mu.Lock()
+			targets[fmt.Sprintf("fdaa::%x", i+2)] = "region"
+			mu.Unlock()
+		}
+	}()
+	for range 1000 {
+		require.Contains(t, targetAddrs(&mu, targets), "fdaa::1")
+	}
+	<-done
+	require.Len(t, targetAddrs(&mu, targets), 1001)
 }
