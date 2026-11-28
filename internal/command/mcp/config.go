@@ -138,6 +138,15 @@ func NewRemove() *cobra.Command {
 	return cmd
 }
 
+// selectConfigFile asks which configuration file to use. It's a variable so
+// tests can answer it.
+var selectConfigFile = func(ctx context.Context, choices []string) (int, error) {
+	var index int
+	err := prompt.Select(ctx, &index, "Select a configuration file", "", choices...)
+
+	return index, err
+}
+
 func runAdd(ctx context.Context) error {
 	// Check this first, so a command that can't write an entry doesn't replace
 	// the app's secrets.
@@ -184,8 +193,11 @@ func runAdd(ctx context.Context) error {
 
 		password := flag.GetString(ctx, "password")
 		if password == "" {
-			err := prompt.Password(ctx, &password, "Password:", true)
-			if err != nil && !prompt.IsNonInteractive(err) {
+			switch err := prompt.Password(ctx, &password, "Password:", true); {
+			case prompt.IsNonInteractive(err):
+				// Don't protect the server with an empty password.
+				return prompt.NonInteractiveError("--password must be specified with --user when not running interactively")
+			case err != nil:
 				return fmt.Errorf("failed to get password: %w", err)
 			}
 		}
@@ -443,7 +455,7 @@ func SelectServerAndConfig(ctx context.Context, configIsArray bool) (string, []C
 		if len(choices) == 0 {
 			return "", nil, errors.New("no MCP servers found in the selected configuration files")
 		} else if len(choices) > 1 {
-			switch err = prompt.Select(ctx, &index, "Select a configuration file", "", choices...); {
+			switch index, err = selectConfigFile(ctx, choices); {
 			case err == nil:
 			case prompt.IsNonInteractive(err):
 				return "", nil, prompt.NonInteractiveError("MCP client or config file must be specified when not running interactively")

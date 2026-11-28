@@ -26,6 +26,8 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 // testCommand parses args for cmd and returns a context to run it with. HOME
@@ -169,6 +171,70 @@ func TestSelectServerAndConfigPicksTheOnlyConfigWithServers(t *testing.T) {
 	require.Equal(t, "my-mcp", server)
 	require.Len(t, paths, 1)
 	require.Equal(t, zedPath(t), paths[0].Path)
+}
+
+func TestAddUserWithoutPasswordNonInteractive(t *testing.T) {
+	calls := recordFlyctl(t)
+	config := filepath.Join(t.TempDir(), "mcp.json")
+	ctx := testCommand(t, NewAdd(), "--url", "https://my-mcp.fly.dev", "--config", config, "--user", "bob")
+	ctx = appconfig.WithConfig(ctx, &appconfig.Config{AppName: "my-mcp"})
+	ios, _, _, _ := iostreams.Test()
+	ctx = iostreams.NewContext(ctx, ios)
+
+	err := runAdd(ctx)
+	require.True(t, prompt.IsNonInteractive(err), err)
+	require.ErrorContains(t, err, "--password must be specified")
+	require.Empty(t, *calls, "no secrets may be set")
+	require.NoFileExists(t, config)
+}
+
+// With servers in more than one client's file, the picked file is the one
+// used, and only its servers are offered. Claude, VS Code, Cursor and Neovim
+// come first in the list and have no servers here.
+func TestSelectServerAndConfigUsesThePickedConfig(t *testing.T) {
+	for _, tc := range []struct {
+		pick       int
+		wantServer string
+		wantPath   func(*testing.T) string
+	}{
+		{0, "wind-mcp", windsurfPath},
+		{1, "zed-mcp", zedPath},
+	} {
+		t.Run(tc.wantServer, func(t *testing.T) {
+			ctx := testCommand(t, NewRemove())
+			ios, _, _, _ := iostreams.Test()
+			ctx = iostreams.NewContext(ctx, ios) // a second prompt fails instead of answering
+			writeServers(t, windsurfPath(t), "mcpServers", map[string][]string{"wind-mcp": {"mcp", "proxy"}})
+			writeServers(t, zedPath(t), "context_servers", map[string][]string{"zed-mcp": {"mcp", "proxy"}})
+
+			var offered []string
+			original := selectConfigFile
+			selectConfigFile = func(_ context.Context, choices []string) (int, error) {
+				offered = choices
+
+				return tc.pick, nil
+			}
+			t.Cleanup(func() { selectConfigFile = original })
+
+			server, paths, err := SelectServerAndConfig(ctx, false)
+			require.NoError(t, err)
+			require.Len(t, offered, 2, "only files with servers are offered")
+			require.Equal(t, tc.wantServer, server)
+			require.Len(t, paths, 1)
+			require.Equal(t, tc.wantPath(t), paths[0].Path)
+		})
+	}
+}
+
+// windsurfPath is where ListConfigPaths looks for Windsurf's configuration on
+// every OS.
+func windsurfPath(t *testing.T) string {
+	t.Helper()
+
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	return filepath.Join(home, ".codeium", "windsurf", "config.json")
 }
 
 func TestInspectReadsCredentialsFromEntry(t *testing.T) {
