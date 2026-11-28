@@ -41,12 +41,12 @@ func runInvite(ctx context.Context) error {
 
 	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, AdminOnly)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	email, err := emailFromSecondArgOrPrompt(ctx)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	inv, err := client.CreateOrganizationInvite(ctx, org.ID, email)
