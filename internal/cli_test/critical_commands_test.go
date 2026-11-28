@@ -47,6 +47,8 @@ func TestCriticalCommandsCLI(t *testing.T) {
 		{Name: "volume env overrides config", Args: []string{"volume", "destroy", "vol_one", "-y"}, Mode: "volume", App: "env-app", EnvApp: "env-app", ConfigApp: "config-app", Output: "Destroyed volume ID: vol_one"},
 		{Name: "volume uses config", Args: []string{"volumes", "destroy", "vol_one", "-y"}, Mode: "volume", App: "config-app", ConfigApp: "config-app", Output: "Destroyed volume ID: vol_one"},
 		{Name: "volume infers app", Args: []string{"volumes", "destroy", "vol_one", "-y"}, Mode: "volume-infer", App: "inferred-app", Output: "Destroyed volume ID: vol_one"},
+		{Name: "volume update infers app", Args: []string{"volumes", "update", "vol_one", "--snapshot-retention", "10"}, Mode: "volume-infer", App: "inferred-app", Output: "vol_one"},
+		{Name: "volume update env overrides config", Args: []string{"volumes", "update", "vol_one", "--snapshot-retention", "10"}, Mode: "volume", App: "env-app", EnvApp: "env-app", ConfigApp: "config-app", Output: "vol_one"},
 		{Name: "secrets stage flag reaches handler", Args: []string{"secrets", "set", "PASSWORD=private-value", "--stage", "--app", "flag-app"}, Mode: "secrets", App: "flag-app", EnvApp: "env-app", ConfigApp: "config-app", Output: "Secrets have been staged"},
 		{Name: "deploy token flags reach API", Args: []string{"tokens", "create", "deploy", "--app", "flag-app", "--expiry", "30m", "--name", "CI job", "--json"}, Mode: "create", App: "flag-app", EnvApp: "env-app", ConfigApp: "config-app", Output: "issued-token"},
 		{Name: "apps require confirmation", Args: []string{"apps", "destroy", "production"}, Code: 1, Error: "yes flag must be specified"},
@@ -194,6 +196,13 @@ func TestCriticalCommandProcess(t *testing.T) {
 			mutations++
 			require.Equal(t, tc.App, app)
 			require.Equal(t, "vol_one", id)
+			return &fly.Volume{ID: id, Name: "data"}, nil
+		},
+		UpdateVolumeFunc: func(_ context.Context, app, id string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
+			mutations++
+			require.Equal(t, tc.App, app)
+			require.Equal(t, "vol_one", id)
+			require.Equal(t, fly.Pointer(10), req.SnapshotRetention)
 			return &fly.Volume{ID: id, Name: "data"}, nil
 		},
 		UpdateAppSecretsFunc: func(_ context.Context, app string, values map[string]*string) (*fly.UpdateAppSecretsResp, error) {

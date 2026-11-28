@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -409,11 +410,31 @@ func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions
 
 	switch {
 	case regionsList != "":
+		for i, code := range regionCodes {
+			regionCodes[i] = strings.ToLower(strings.TrimSpace(code))
+		}
+		regionCodes = lo.Compact(regionCodes)
 
-		regions = lo.Filter(regions, func(region fly.Region, _ int) bool {
-			return lo.ContainsBy(regionCodes, func(regionCode string) bool {
-				return regionCode == region.Code
-			})
+		regionInfo, err := PlatformRegions(ctx).Get()
+		if err != nil {
+			return nil, err
+		}
+		// Check against the same regions the result is filtered from, so no
+		// requested code is dropped silently. Callers such as fly redis update
+		// replace the current set with the result, so a dropped code can remove
+		// replicas.
+		selectable := append(slices.Clone(regions), paidOnly...)
+		for _, code := range regionCodes {
+			switch {
+			case !lo.ContainsBy(regionInfo.Regions, func(region fly.Region) bool { return region.Code == code }):
+				return nil, fmt.Errorf("region %s not found", code)
+			case !lo.ContainsBy(selectable, func(region fly.Region) bool { return region.Code == code }):
+				return nil, fmt.Errorf("region %s can't be used for --%s", code, flagName)
+			}
+		}
+
+		regions = lo.Filter(selectable, func(region fly.Region, _ int) bool {
+			return lo.Contains(regionCodes, region.Code)
 		})
 
 		return &regions, nil
