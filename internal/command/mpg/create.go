@@ -6,16 +6,17 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	cmdv2 "github.com/superfly/flyctl/internal/command/mpg/v2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/mpgutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/requestauth"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -31,7 +32,8 @@ FLY_ORG), --region and --plan, or you're asked for them in a terminal. If
 your only organization is your personal one, it's used without asking.
 Without a terminal, --name and --region are required, so is --org unless
 FLY_ORG is set or you only have a personal organization, and the plan
-defaults to Basic.
+defaults to Basic if the organization can use it, otherwise to the cheapest
+plan the organization can use (for example, Developer for Free organizations).
 
 You can stop waiting with Ctrl+C; the cluster keeps provisioning. Then use
 ` + "`fly mpg status`" + ` to check on it and ` + "`fly mpg attach`" + ` to connect an app.`
@@ -124,6 +126,12 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
+	// For ui-ex request we need the real org slug
+	slug := org.Slug
+	if org.Slug == "personal" {
+		slug = org.RawSlug
+	}
+
 	// Plan selection and validation
 	plan, ok := planKey(flag.GetString(ctx, "plan"))
 	if !ok {
@@ -131,44 +139,24 @@ func runCreate(ctx context.Context) error {
 			return fmt.Errorf("unknown plan %q; valid plans are %s", flag.GetString(ctx, "plan"), planNames())
 		}
 
-		if io.IsInteractive() {
-			// Prepare a sortable slice of plans
-			type planEntry struct {
-				Key   string
-				Value PlanDetails
-			}
-			var planEntries []planEntry
-			for k, v := range MPGPlans {
-				planEntries = append(planEntries, planEntry{Key: k, Value: v})
-			}
-			// Sort by price
-			sort.Slice(planEntries, func(i, j int) bool {
-				return planEntries[i].Value.PricePerMo < planEntries[j].Value.PricePerMo
-			})
-			// Build options and keys in sorted order
-			var planOptions []string
-			var planKeys []string
-			for _, entry := range planEntries {
-				planOptions = append(planOptions, fmt.Sprintf("%s: %s, %s RAM, $%d/mo", entry.Value.Name, entry.Value.CPU, entry.Value.Memory, entry.Value.PricePerMo))
-				planKeys = append(planKeys, entry.Key)
-			}
-			// Developer is listed first, as the cheapest, but Basic stays the
-			// default, as it is without a terminal.
-			defaultOption := planOptions[slices.Index(planKeys, "basic")]
-			var selectedIndex int
-			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", defaultOption, planOptions...); err != nil {
+		plans, err := availablePlans(requestauth.WithOrganizations(ctx, org.InternalNumericID), slug)
+		if err != nil {
+			if len(plans) == 0 {
 				return err
 			}
-			plan = planKeys[selectedIndex]
-		} else {
-			plan = "basic" // Default to basic if not interactive
+			if !io.IsInteractive() {
+				fmt.Fprintf(io.ErrOut, "Warning: %v. Defaulting to Basic; pass --plan to choose.\n", err)
+			}
 		}
-	}
-
-	// For ui-ex request we need the real org slug
-	slug := org.Slug
-	if org.Slug == "personal" {
-		slug = org.RawSlug
+		plan = defaultPlan(plans)
+		if io.IsInteractive() {
+			options, keys, defaultOption := planPromptOptions(plans, plan)
+			var selectedIndex int
+			if err := prompt.Select(ctx, &selectedIndex, "Select a plan for your Managed Postgres cluster", defaultOption, options...); err != nil {
+				return err
+			}
+			plan = keys[selectedIndex]
+		}
 	}
 
 	params := &cmdv2.CreateClusterParams{
@@ -194,6 +182,24 @@ func runCreate(ctx context.Context) error {
 		Memory:     planDetails.Memory,
 		PricePerMo: planDetails.PricePerMo,
 	})
+}
+
+// planPromptOptions uses the same selected default as non-interactive creation.
+func planPromptOptions(plans []flaps.ManagedPostgresPlan, defaultPlan string) (options, keys []string, defaultOption string) {
+	for _, p := range plans {
+		details, ok := MPGPlans[p.Plan]
+		if !ok {
+			continue
+		}
+		option := fmt.Sprintf("%s: %s, %s RAM, $%d/mo", details.Name, details.CPU, details.Memory, details.PricePerMo)
+		options = append(options, option)
+		keys = append(keys, p.Plan)
+		if p.Plan == defaultPlan {
+			defaultOption = option
+		}
+	}
+
+	return
 }
 
 // planKey returns the MPGPlans key for a plan given by its key or its name
