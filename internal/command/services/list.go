@@ -3,10 +3,12 @@ package services
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -53,11 +55,11 @@ func runList(ctx context.Context) error {
 	}
 
 	serviceList := [][]string{}
-	serviceToRegion := map[string][]string{}
-	serviceToProcessGroup := map[string][]string{}
-	serviceToMachines := map[string]int{}
+	serviceToRegion := map[serviceKey][]string{}
+	serviceToProcessGroup := map[serviceKey][]string{}
+	serviceToMachines := map[serviceKey]int{}
 
-	services := map[string]struct{}{}
+	services := map[serviceKey]struct{}{}
 
 	for _, machine := range machines {
 		for _, service := range machine.Config.Services {
@@ -69,11 +71,11 @@ func runList(ctx context.Context) error {
 					handlers = append(handlers, strings.ToUpper(handler))
 				}
 
-				ports := fmt.Sprintf("%d => %d", *port.Port, service.InternalPort)
+				ports := fmt.Sprintf("%s => %d", formatPort(port), service.InternalPort)
 				https := cases.Title(language.English, cases.Compact).String(fmt.Sprint(port.ForceHTTPS))
 				h := strings.Join(handlers, ",")
 
-				key := getServiceKey(protocol, ports, https, h)
+				key := serviceKey{protocol: protocol, ports: ports, forceHTTPS: https, handlers: h}
 
 				services[key] = struct{}{}
 
@@ -85,17 +87,13 @@ func runList(ctx context.Context) error {
 	}
 
 	for service := range services {
-		components := strings.Split(service, "-")
-
-		protocol := strings.ToUpper(components[0])
-		ports := strings.ToUpper(components[1])
-		https := components[2]
-		handlers := fmt.Sprintf("[%s]", strings.ToUpper(components[3]))
+		protocol := strings.ToUpper(service.protocol)
+		handlers := fmt.Sprintf("[%s]", service.handlers)
 		processGroup := strings.Join(lo.Uniq(serviceToProcessGroup[service]), ",")
 		regions := strings.Join(lo.Uniq(serviceToRegion[service]), ",")
 		machineCount := fmt.Sprint(serviceToMachines[service])
 
-		serviceList = append(serviceList, []string{protocol, ports, handlers, https, processGroup, regions, machineCount})
+		serviceList = append(serviceList, []string{protocol, service.ports, handlers, service.forceHTTPS, processGroup, regions, machineCount})
 	}
 
 	_ = render.Table(io.Out, "Services", serviceList, "Protocol", "Ports", "Handlers", "Force HTTPS", "Process Group", "Regions", "Machines")
@@ -103,6 +101,23 @@ func runList(ctx context.Context) error {
 	return nil
 }
 
-func getServiceKey(protocol, ports, forcehttps, handlers string) string {
-	return fmt.Sprintf("%s-%s-%s-%s", protocol, ports, forcehttps, handlers)
+type serviceKey struct {
+	protocol, ports, forceHTTPS, handlers string
+}
+
+// formatPort returns a service's public port, or its range when it's set with
+// start_port and end_port.
+func formatPort(port fly.MachinePort) string {
+	switch {
+	case port.Port != nil:
+		return strconv.Itoa(*port.Port)
+	case port.StartPort != nil && port.EndPort != nil:
+		return fmt.Sprintf("%d-%d", *port.StartPort, *port.EndPort)
+	case port.StartPort != nil:
+		return fmt.Sprintf("%d-", *port.StartPort)
+	case port.EndPort != nil:
+		return fmt.Sprintf("-%d", *port.EndPort)
+	default:
+		return "-"
+	}
 }
