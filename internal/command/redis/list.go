@@ -18,8 +18,11 @@ import (
 
 func newList() (cmd *cobra.Command) {
 	const (
-		long  = `List Upstash Redis databases for an organization`
-		short = long
+		short = "List Upstash Redis databases"
+		long  = `List the Upstash Redis databases you have access to, with each one's
+organization, plan, eviction and ProdPack settings, primary region and read
+regions. Pass ` + "`--org`" + ` or set ` + "`FLY_ORG`" + ` to list only one organization's
+databases.`
 		usage = "list"
 	)
 

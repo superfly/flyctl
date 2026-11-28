@@ -16,9 +16,11 @@ import (
 
 func newDashboard() (cmd *cobra.Command) {
 	const (
-		long = `View your Upstash Redis databases on the Upstash web console`
+		short = "View your Upstash Redis databases on the Upstash web console"
+		long  = `Open the Upstash web console for an organization's Redis databases in
+your browser, using a sign-in link from Fly.io. Pass the organization
+slug as the argument; find it with ` + "`fly orgs list`" + `.`
 
-		short = long
 		usage = "dashboard <org_slug>"
 	)
 

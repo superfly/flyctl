@@ -15,8 +15,10 @@ import (
 
 func newStatus() *cobra.Command {
 	const (
-		short = "Show status of a Redis database"
-		long  = short + "\n"
+		short = "Show the status of an Upstash Redis database"
+		long  = `Show details of the Upstash Redis database given by name as the
+argument: its ID, plan, primary and replica regions, eviction,
+auto-upgrade and ProdPack settings, and connection URL.`
 
 		usage = "status <name>"
 	)
