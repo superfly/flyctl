@@ -32,6 +32,7 @@ func (c *Config) Validate(ctx context.Context) (err error, extra_info string) {
 		c.validateDeploySection,
 		c.validateChecksSection,
 		c.validateServicesSection,
+		c.validateServiceChecksHavePort,
 		c.validateProcessesSection,
 		c.validateMachineConversion,
 		c.validateConsoleCommand,
@@ -195,6 +196,22 @@ func (c *Config) validateServicesSection() (extraInfo string, err error) {
 	}
 
 	return extraInfo, err
+}
+
+func (c *Config) validateServiceChecksHavePort() (extraInfo string, err error) {
+	for i, service := range c.AllServices() {
+		hasChecks := len(service.HTTPChecks) > 0 || len(service.TCPChecks) > 0
+		if hasChecks && service.InternalPort == 0 && len(service.Ports) == 0 {
+			extraInfo += fmt.Sprintf(
+				"Service at index %d defines health checks but has no internal_port or ports; "+
+					"define checks under [[http_service.checks]] or in a [[services]] section with an internal_port\n",
+				i,
+			)
+			err = ErrInvalidApplicationConfig
+		}
+	}
+
+	return
 }
 
 func validateServiceCheckDurations(interval, timeout, gracePeriod *fly.Duration, proto string) (extraInfo string) {

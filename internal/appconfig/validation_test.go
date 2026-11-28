@@ -108,6 +108,32 @@ func TestConfig_ValidateMounts(t *testing.T) {
 	require.Contains(t, x, "group 'app' has more than one [[mounts]] section defined")
 }
 
+func TestConfigValidateServiceChecksHavePort(t *testing.T) {
+	newConfig := func() *Config {
+		return &Config{
+			HTTPService: &HTTPService{InternalPort: 8080},
+			Services: []Service{{
+				HTTPChecks: []*ServiceHTTPCheck{{}},
+			}},
+		}
+	}
+
+	// A service that only carries health checks and has no port of its own is
+	// the shape produced by mixing [[services.http_checks]] into a config that
+	// already has [http_service]. Validation must reject it instead of silently
+	// producing a broken machine service.
+	cfg := newConfig()
+	err, output := cfg.Validate(context.Background())
+	require.Error(t, err, output)
+	require.Contains(t, output, "defines health checks but has no internal_port or ports")
+
+	// A service with its own internal_port is fine.
+	cfg = newConfig()
+	cfg.Services[0].InternalPort = 8081
+	err, output = cfg.Validate(context.Background())
+	require.NoError(t, err, output)
+}
+
 func TestConfig_ValidateServices(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/validate-services.toml")
 	require.NoError(t, err)
