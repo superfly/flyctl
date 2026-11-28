@@ -24,8 +24,15 @@ import (
 
 func newPlace() (cmd *cobra.Command) {
 	const (
-		long = `Simulate a batch of Machine placements across multiple regions
-`
+		long = `Ask the platform how a batch of Fly Machines would be placed across
+regions, without creating anything, and print the machine count it
+returns for each region. The defaults are a performance-1x guest and any region; use
+` + "`--count`" + `, ` + "`--region`" + `, the VM size flags and the volume flags to describe
+what you want to place.
+
+The organization comes from ` + "`--org`" + ` or ` + "`FLY_ORG`" + `, or from the app set by
+` + "`FLY_APP`" + ` or ` + "`fly.toml`" + `. With none of these, you pick an organization in a
+terminal.`
 		short = "Simulate Machine placements"
 	)
 

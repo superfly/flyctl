@@ -251,8 +251,26 @@ var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func newRun() *cobra.Command {
 	const (
-		short = "Run a machine"
-		long  = short + "\n"
+		short = "Create and start a Fly Machine from an image"
+		long  = `Create a new Fly Machine from a container image and start it. The image is a
+registry reference such as nginx, or "." to build the Dockerfile in the
+working directory, or the one set by ` + "`--dockerfile`" + ` or fly.toml. Any image
+argument that starts with "." or "/" builds from the working directory,
+whatever path it names. Arguments after the image become the machine's
+command.
+
+The machine goes into the app from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml. With no
+app, or an app that doesn't exist yet, fly asks whether to create one; this
+needs a terminal. After starting the machine, fly waits for its health
+checks unless you pass ` + "`--detach`" + `.
+
+With ` + "`--shell`" + `, fly opens a shell on the new machine (ubuntu if you give no
+image) and destroys the machine when you exit. It doesn't offer to create a
+missing app: an app that doesn't exist is an error, and without an app it
+uses a shared app for interactive shells. That app's organization comes from
+` + "`--org`" + ` or ` + "`FLY_ORG`" + `; with neither, you pick one in a terminal, unless you
+belong only to your personal organization. To create a machine without
+starting it, use ` + "`fly machine create`" + `.`
 
 		usage = "run <image> [command]"
 	)
@@ -302,7 +320,16 @@ func newRun() *cobra.Command {
 func newCreate() *cobra.Command {
 	const (
 		short = "Create, but don't start, a machine"
-		long  = short + "\n"
+		long  = `Create a new Fly Machine from a container image without starting it. It
+takes the same arguments as ` + "`fly machine run`" + `: the image is a registry
+reference, or "." to build the Dockerfile in the working directory, or the
+one set by ` + "`--dockerfile`" + ` or fly.toml. Any image argument that starts with
+"." or "/" builds from the working directory, whatever path it names.
+Arguments after the image become the machine's command.
+
+The machine goes into the app from ` + "`--app`" + `, ` + "`FLY_APP`" + ` or fly.toml. With no
+app, or an app that doesn't exist yet, fly asks whether to create one; this
+needs a terminal. Start the machine later with ` + "`fly machine start`" + `.`
 
 		usage = "create <image> [command]"
 	)
