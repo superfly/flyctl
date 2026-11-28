@@ -44,6 +44,11 @@ func updateImageForMachines(ctx context.Context, app *flaps.App) error {
 			return err
 		}
 
+		// Skip image update if images already match
+		if machine.Config.Image == image || machine.FullImageRef() == image {
+			continue
+		}
+
 		machineConf.Image = image
 
 		if !autoConfirm {
