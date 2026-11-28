@@ -16,8 +16,10 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		short = "List postgres clusters"
-		long  = short + "\n"
+		short = "List Fly Postgres clusters"
+		long  = `List the Fly Postgres apps in all of your organizations, with each app's
+owner, status and latest deploy. This doesn't include Managed Postgres
+clusters; for those, use ` + "`fly mpg list`" + `.`
 
 		usage = "list"
 	)

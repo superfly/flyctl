@@ -25,8 +25,25 @@ import (
 
 func newImport() *cobra.Command {
 	const (
-		short = "Imports database from a specified Postgres URI"
-		long  = short + "\n"
+		short = "Import a database from a Postgres URI"
+		long  = `Copy a database from another Postgres server, given as a connection URI,
+into a Fly Postgres cluster. The target Postgres app comes from --app,
+FLY_APP or fly.toml.
+
+This starts a temporary machine in the target app that dumps the source and
+restores it into the cluster, and destroys the machine when it's done. The
+region comes from --region or FLY_REGION, and the size from --vm-size; pick
+the ones you don't set in a terminal.
+
+The source URI is stored on the target app as the SOURCE_DATABASE_URI secret
+and removed after a successful import. If the import fails, the secret
+stays; remove it with ` + "`fly secrets unset SOURCE_DATABASE_URI`" + `.
+
+With --clean, what's being imported is dropped from the cluster before it's
+recreated. Because --create is on by default, that drops and recreates the
+whole database that has the source database's name, including tables that
+aren't in the source. Pass --create=false to drop only the objects being
+imported.`
 		usage = "import <source-uri>"
 	)
 

@@ -30,8 +30,16 @@ import (
 
 func newFailover() *cobra.Command {
 	const (
-		short = "Failover to a new primary"
-		long  = short + "\n"
+		short = "Fail over to a new primary"
+		long  = `Make a replica the new primary of a Fly Postgres cluster. The Postgres app
+comes from --app, FLY_APP or fly.toml. There's no confirmation prompt.
+
+The cluster needs more than one machine, and clusters managed by repmgr
+(Flex) need at least three. For Flex clusters, the new primary comes from
+the primary region unless --allow-secondary-region allows another region.
+The command fails if no machine currently reports itself as the primary,
+even with --force. --force affects only Flex clusters, where it passes -F to
+the ` + "`repmgr standby promote`" + ` run on the new primary.`
 		usage = "failover"
 	)
 
