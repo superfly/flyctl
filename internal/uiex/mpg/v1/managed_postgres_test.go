@@ -317,3 +317,103 @@ func TestRestoreManagedClusterBackup_NamePayload(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateUser_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST request, got %s", r.Method)
+		}
+		if r.URL.Path != "/api/v1/postgres/test-cluster-id/users" {
+			t.Errorf("expected path /api/v1/postgres/test-cluster-id/users, got %s", r.URL.Path)
+		}
+
+		var input CreateUserInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			t.Errorf("failed to decode request body: %v", err)
+		}
+		if input.UserName != "newuser" || input.DbName != "mydb" {
+			t.Errorf("unexpected input: %+v", input)
+		}
+
+		response := CreateUserResponse{
+			ConnectionUri: "postgres://newuser:pass@host/mydb",
+			Ok:            true,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	client, ctx, err := setupTestClient(server)
+	if err != nil {
+		t.Fatalf("failed to setup test client: %v", err)
+	}
+
+	res, err := client.CreateUser(ctx, "test-cluster-id", CreateUserInput{
+		UserName: "newuser",
+		DbName:   "mydb",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !res.Ok || res.ConnectionUri != "postgres://newuser:pass@host/mydb" {
+		t.Errorf("unexpected response: %+v", res)
+	}
+}
+
+func TestCreateUser_NonJSONErrorPreservesStatusAndClusterID(t *testing.T) {
+	proxyHTML := "<html><body>502 Bad Gateway</body></html>"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusBadGateway)
+		w.Write([]byte(proxyHTML))
+	}))
+	defer server.Close()
+
+	client, ctx, err := setupTestClient(server)
+	if err != nil {
+		t.Fatalf("failed to setup test client: %v", err)
+	}
+
+	_, err = client.CreateUser(ctx, "cluster-xyz-123", CreateUserInput{
+		UserName: "alice",
+		DbName:   "db1",
+	})
+	if err == nil {
+		t.Fatal("expected error for 502 response, got nil")
+	}
+
+	expectedError := "failed to create user for cluster cluster-xyz-123 (status 502): " + proxyHTML
+	if err.Error() != expectedError {
+		t.Errorf("expected error %q, got %q", expectedError, err.Error())
+	}
+}
+
+func TestCreateUser_JSONErrorDetail(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"ok":false,"errors":{"detail":"user already exists"}}`))
+	}))
+	defer server.Close()
+
+	client, ctx, err := setupTestClient(server)
+	if err != nil {
+		t.Fatalf("failed to setup test client: %v", err)
+	}
+
+	_, err = client.CreateUser(ctx, "cluster-xyz-123", CreateUserInput{
+		UserName: "alice",
+		DbName:   "db1",
+	})
+	if err == nil {
+		t.Fatal("expected error for 400 response, got nil")
+	}
+
+	expectedError := "Failed to create user with error: user already exists"
+	if err.Error() != expectedError {
+		t.Errorf("expected error %q, got %q", expectedError, err.Error())
+	}
+}
