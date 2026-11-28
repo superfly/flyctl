@@ -633,8 +633,9 @@ func startOrRestartBuilderMachine(ctx context.Context, appName string, builderMa
 	}
 	if err != nil && (builderMachine.State == "stopped" || builderMachine.State == "stopping") {
 		var apiErr *flaps.FlapsError
-		if errors.As(err, &apiErr) && apiErr.ResponseStatusCode == http.StatusConflict && strings.Contains(apiErr.Error(), "machine still attempting to start") {
-			err = nil // Another caller started this builder. Wait for readiness below.
+		if errors.As(err, &apiErr) && apiErr.ResponseStatusCode == http.StatusConflict &&
+			strings.TrimPrefix(apiErr.Error(), "aborted: ") == "machine still attempting to start" {
+			err = nil // A start is already in progress. Wait for readiness below.
 		}
 	}
 	if err != nil {
