@@ -2,7 +2,6 @@ package cmdv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/superfly/fly-go/flaps"
@@ -25,7 +24,7 @@ func RunExtensionsList(ctx context.Context, clusterID, database string) error {
 
 	extensions, err := flapsutil.ClientFromContext(ctx).ListManagedPostgresExtensions(ctx, clusterID, database)
 	var outputExtensions []mpgv2.Extension
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		resp, legacyErr := mpgv2.ClientFromContext(ctx).ListExtensions(ctx, clusterID, database)
 		if legacyErr != nil {
 			return fmt.Errorf("failed to list extensions for database %s: %w", database, legacyErr)
@@ -89,7 +88,7 @@ func RunExtensionsEnable(ctx context.Context, clusterID, database, name, schema 
 	}
 
 	err = flapsutil.ClientFromContext(ctx).EnableManagedPostgresExtension(ctx, clusterID, database, input)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		err = mpgv2.ClientFromContext(ctx).EnableExtension(ctx, clusterID, database, mpgv2.EnableExtensionInput{
 			Name:                 name,
 			Schema:               schema,
@@ -114,7 +113,7 @@ func RunExtensionsDisable(ctx context.Context, clusterID, database, name string,
 	}
 
 	err = flapsutil.ClientFromContext(ctx).DisableManagedPostgresExtension(ctx, clusterID, database, name, force)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		err = mpgv2.ClientFromContext(ctx).DisableExtension(ctx, clusterID, database, name, force)
 	}
 	if err != nil {
@@ -161,7 +160,7 @@ func resolveDatabase(ctx context.Context, clusterID, database string) (string, e
 	}
 
 	databases, err := flapsutil.ClientFromContext(ctx).ListManagedPostgresDatabases(ctx, clusterID)
-	if errors.Is(err, flaps.ErrFlapsNotFound) {
+	if flapsutil.IsFlapsRouteMissing(err) {
 		response, legacyErr := mpgv2.ClientFromContext(ctx).ListDatabases(ctx, clusterID)
 		if legacyErr != nil {
 			return "", fmt.Errorf("failed to list databases: %w", legacyErr)

@@ -100,6 +100,16 @@ func TestRunDatabasesList(t *testing.T) {
 			wantLegacyCalled: true,
 			wantErr:          "failed to list databases for cluster mpg-123: legacy boom",
 		},
+		{
+			name: "returns resource-level 404 without falling back to legacy",
+			publicListErr: &flaps.FlapsError{
+				ResponseStatusCode: 404,
+				ResponseBody:       []byte(`{"error":"cluster not found"}`),
+				OriginalError:      errors.New("cluster not found"),
+			},
+			wantPublicCalled: true,
+			wantErr:          "failed to list databases for cluster mpg-123: cluster not found",
+		},
 	}
 
 	for _, test := range tests {
@@ -194,6 +204,17 @@ func TestRunDatabasesCreate(t *testing.T) {
 			wantPublicCalled: true,
 			wantLegacyCalled: true,
 			wantErr:          "failed to create database: legacy boom",
+		},
+		{
+			name:     "returns resource-level 404 without falling back to legacy",
+			nameFlag: "reports",
+			publicCreateErr: &flaps.FlapsError{
+				ResponseStatusCode: 404,
+				ResponseBody:       []byte(`{"error":"cluster not found"}`),
+				OriginalError:      errors.New("cluster not found"),
+			},
+			wantPublicCalled: true,
+			wantErr:          "failed to create database: cluster not found",
 		},
 		{
 			name:    "requires --name when not interactive",
