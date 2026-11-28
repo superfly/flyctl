@@ -35,7 +35,7 @@ func newProxy() *cobra.Command {
 			Name:        flagnames.BindAddr,
 			Shorthand:   "b",
 			Default:     "127.0.0.1",
-			Description: "Local address to bind to",
+			Description: "Local address to bind to. Use ::1 for IPv6, or 0.0.0.0 to accept connections from other hosts",
 		},
 	)
 
@@ -76,15 +76,15 @@ func runMachineProxy(ctx context.Context) error {
 		return err
 	}
 
-	// ports := strings.Split(args[0], ":")
+	return proxy.Connect(ctx, apiProxyParams(ctx, orgSlug, dialer))
+}
 
-	params := &proxy.ConnectParams{
+func apiProxyParams(ctx context.Context, orgSlug string, dialer agent.Dialer) *proxy.ConnectParams {
+	return &proxy.ConnectParams{
 		BindAddr:         flag.GetBindAddr(ctx),
 		Ports:            []string{"4280"},
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,
 		RemoteHost:       "_api.internal",
 	}
-
-	return proxy.Connect(ctx, params)
 }

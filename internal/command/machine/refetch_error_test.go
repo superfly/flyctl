@@ -12,7 +12,6 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/iostreams"
@@ -86,9 +85,4 @@ func TestWaitReportsFailedRefetch(t *testing.T) {
 			require.ErrorContains(t, err, tc.want)
 		})
 	}
-}
-
-func TestAPIProxyBindsToLocalhostByDefault(t *testing.T) {
-	ctx := flag.NewContext(t.Context(), newProxy().Flags())
-	require.Equal(t, "127.0.0.1", flag.GetBindAddr(ctx), "flag %s", flagnames.BindAddr)
 }

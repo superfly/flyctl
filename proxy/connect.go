@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -99,7 +100,7 @@ func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 
 	if _, err := strconv.Atoi(localPort); err == nil {
 		// just numbers
-		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", localBindAddr, localPort))
+		addr, err := net.ResolveTCPAddr("tcp", listenAddr(localBindAddr, localPort))
 		if err != nil {
 			return nil, err
 		}
@@ -146,4 +147,10 @@ func selectInstance(ctx context.Context, org, app string, c *agent.Client) (inst
 	}
 
 	return instances.Addresses[selected], nil
+}
+
+// listenAddr joins a bind address and port so that IPv6 addresses work. A
+// bracketed address such as [::1] is accepted too, as it was before.
+func listenAddr(bindAddr, port string) string {
+	return net.JoinHostPort(strings.TrimSuffix(strings.TrimPrefix(bindAddr, "["), "]"), port)
 }
