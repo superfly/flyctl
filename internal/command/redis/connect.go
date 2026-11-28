@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -75,20 +76,38 @@ func runRedisCLI(ctx context.Context, io *iostreams.IOStreams, path, port, passw
 		return nil
 	case !errors.As(err, &exitErr):
 		return fmt.Errorf("could not run redis-cli: %w", err)
-	case interrupted(exitErr):
-		// Ctrl-C can reach redis-cli before flyctl cancels ctx.
+	case interrupted(ctx, exitErr):
 		return nil
-	case exitErr.ExitCode() > 0:
-		// redis-cli has already printed its error; pass its status through.
-		return &tracecmd.ExitError{Code: exitErr.ExitCode()}
-	default:
-		return fmt.Errorf("redis-cli failed: %w", err)
 	}
+
+	// redis-cli has already printed any error; pass its status through.
+	if status, ok := exitErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+		return &tracecmd.ExitError{Code: 128 + int(status.Signal())}
+	}
+	if code := exitErr.ExitCode(); code > 0 {
+		return &tracecmd.ExitError{Code: code}
+	}
+
+	return fmt.Errorf("redis-cli failed: %w", err)
 }
 
-// interrupted reports whether redis-cli ended because of Ctrl-C.
-func interrupted(err *exec.ExitError) bool {
-	status, ok := err.Sys().(syscall.WaitStatus)
+// interruptGrace is how long a failed redis-cli waits for flyctl to see the
+// same Ctrl-C.
+var interruptGrace = 250 * time.Millisecond
 
-	return ok && status.Signaled() && status.Signal() == syscall.SIGINT
+// interrupted reports whether redis-cli ended because of Ctrl-C. The terminal
+// sends Ctrl-C to redis-cli and flyctl together. redis-cli either dies of it
+// or catches it and exits 1, and it can do either before flyctl cancels ctx,
+// so a failed exit waits briefly for that.
+func interrupted(ctx context.Context, err *exec.ExitError) bool {
+	if status, ok := err.Sys().(syscall.WaitStatus); ok && status.Signaled() && status.Signal() == syscall.SIGINT {
+		return true
+	}
+
+	select {
+	case <-ctx.Done():
+		return true
+	case <-time.After(interruptGrace):
+		return false
+	}
 }

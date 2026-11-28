@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	tracecmd "github.com/superfly/flyctl/internal/command/trace"
@@ -51,4 +52,17 @@ func TestRunRedisCLIReportsFailure(t *testing.T) {
 	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 	require.NoError(t, runRedisCLI(canceled, ios, script("exit 3"), "16379", "secret"))
+
+	// redis-cli catches Ctrl-C and exits 1, before flyctl cancels ctx.
+	late, cancelLate := context.WithCancel(t.Context())
+	defer cancelLate()
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancelLate()
+	}()
+	require.NoError(t, runRedisCLI(late, ios, script("exit 1"), "16379", "secret"))
+
+	// Other signals give the shell's 128+signal status.
+	require.ErrorAs(t, runRedisCLI(t.Context(), ios, script("kill -KILL $$"), "16379", "secret"), &exit)
+	require.Equal(t, 137, exit.Code)
 }
