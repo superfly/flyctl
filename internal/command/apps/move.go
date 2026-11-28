@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -139,24 +140,24 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.O
 	if oldStaticsBucket != nil {
 		releaseVersion := 0
 		if release, err := uiexutil.LatestRelease(ctx, uiexutil.ClientFromContext(ctx), app.Name); err != nil {
-			return fmt.Errorf("failed to find app's current release: %w", err)
+			return movedButErr(app, targetOrg, fmt.Errorf("failed to find app's current release: %w", err))
 		} else if release != nil {
 			releaseVersion = release.Version
 		}
 
 		err := statics.MoveBucket(ctx, oldStaticsBucket, oldOrg, app, targetOrg, releaseVersion, machines)
 		if err != nil {
-			return fmt.Errorf("failed to move statics bucket: %w", err)
+			return movedButErr(app, targetOrg, fmt.Errorf("failed to move statics bucket: %w", err))
 		}
 	}
 
 	minvers, err := appsecrets.GetMinvers(app.Name)
 	if err != nil {
-		return err
+		return movedButErr(app, targetOrg, fmt.Errorf("failed to read the app's secrets version: %w", err))
 	}
 
 	if err := updateMovedMachines(ctx, app.Name, machines, skipHealthChecks, minvers); err != nil {
-		return fmt.Errorf("moved %s to %s, but %w", app.Name, targetOrg.Name, err)
+		return movedButErr(app, targetOrg, err)
 	}
 	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", app.Name, targetOrg.Name)
 
@@ -166,8 +167,16 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.O
 // updateMovedMachines updates every Machine, even after a failure: the app has
 // already moved.
 func updateMovedMachines(ctx context.Context, appName string, machines []*fly.Machine, skipHealthChecks bool, minvers *uint64) error {
-	var errs []error
-	for _, machine := range machines {
+	var (
+		errs   []error
+		failed int
+	)
+	for i, machine := range machines {
+		// Stop on Ctrl-C rather than send updates that are bound to fail.
+		if ctx.Err() != nil {
+			errs = append(errs, fmt.Errorf("stopped before updating %d Machines: %w", len(machines)-i, context.Cause(ctx)))
+			break
+		}
 		input := &fly.LaunchMachineInput{
 			Name:              machine.Name,
 			Region:            machine.Region,
@@ -176,12 +185,23 @@ func updateMovedMachines(ctx context.Context, appName string, machines []*fly.Ma
 			MinSecretsVersion: minvers,
 		}
 		if err := mach.Update(ctx, appName, machine, input); err != nil {
-			errs = append(errs, fmt.Errorf("machine %s: %w", machine.ID, err))
+			// Most mach.Update errors already name the Machine.
+			if !strings.Contains(err.Error(), machine.ID) {
+				err = fmt.Errorf("machine %s: %w", machine.ID, err)
+			}
+			errs = append(errs, err)
+			failed++
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to update %d of %d Machines:\n%w", len(errs), len(machines), errors.Join(errs...))
+		return fmt.Errorf("failed to update %d of %d Machines:\n%w", failed, len(machines), errors.Join(errs...))
 	}
 
 	return nil
+}
+
+// movedButErr reports a failure after the app has already moved, so that the
+// user doesn't retry the move.
+func movedButErr(app *flaps.App, targetOrg *uiex.Organization, err error) error {
+	return fmt.Errorf("moved %s to %s, but %w", app.Name, targetOrg.Name, err)
 }
