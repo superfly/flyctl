@@ -3,6 +3,7 @@ package apps
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/mock"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -23,8 +25,8 @@ func TestMoveReportsMachineUpdateFailures(t *testing.T) {
 		want   string
 	}{
 		{"all updated", nil, ""},
-		{"one fails, the rest are still updated", []string{"m1"}, "failed to update 1 of 2 Machines"},
-		{"all fail", []string{"m1", "m2"}, "failed to update 2 of 2 Machines"},
+		{"one fails, the rest are still updated", []string{"m1"}, "1 of 2 Machines were not updated"},
+		{"all fail", []string{"m1", "m2"}, "2 of 2 Machines were not updated"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Machines start on v1; an accepted update moves them to v2.
@@ -83,6 +85,20 @@ func TestMoveStopsUpdatingMachinesWhenCancelled(t *testing.T) {
 	}
 	err := updateMovedMachines(ctx, "app", machines, true, nil)
 	require.Equal(t, []string{"m1"}, updated)
-	require.ErrorContains(t, err, "failed to update 1 of 3 Machines")
+	require.ErrorContains(t, err, "3 of 3 Machines were not updated")
 	require.ErrorContains(t, err, "stopped before updating 2 Machines")
+}
+
+// The CLI exits 127 without printing anything for an error that wraps
+// context.Canceled, and 126 for DeadlineExceeded. Once the app has moved, the
+// user must always see the error, so movedButErr must not wrap either.
+func TestMovedButErrIsAlwaysPrinted(t *testing.T) {
+	app := &flaps.App{Name: "app"}
+	org := &uiex.Organization{Name: "org"}
+	for _, cause := range []error{context.Canceled, context.DeadlineExceeded} {
+		err := movedButErr(app, org, fmt.Errorf("1 of 1 Machines were not updated:\n%w", cause))
+		require.NotErrorIs(t, err, context.Canceled)
+		require.NotErrorIs(t, err, context.DeadlineExceeded)
+		require.ErrorContains(t, err, "moved app to org, but 1 of 1 Machines were not updated")
+	}
 }

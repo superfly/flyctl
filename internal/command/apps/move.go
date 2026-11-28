@@ -168,13 +168,16 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.O
 // already moved.
 func updateMovedMachines(ctx context.Context, appName string, machines []*fly.Machine, skipHealthChecks bool, minvers *uint64) error {
 	var (
-		errs   []error
-		failed int
+		errs       []error
+		notUpdated int
 	)
 	for i, machine := range machines {
 		// Stop on Ctrl-C rather than send updates that are bound to fail.
 		if ctx.Err() != nil {
-			errs = append(errs, fmt.Errorf("stopped before updating %d Machines: %w", len(machines)-i, context.Cause(ctx)))
+			skipped := len(machines) - i
+			notUpdated += skipped
+			errs = append(errs, fmt.Errorf("stopped before updating %d Machines: %w", skipped, context.Cause(ctx)))
+
 			break
 		}
 		input := &fly.LaunchMachineInput{
@@ -185,23 +188,25 @@ func updateMovedMachines(ctx context.Context, appName string, machines []*fly.Ma
 			MinSecretsVersion: minvers,
 		}
 		if err := mach.Update(ctx, appName, machine, input); err != nil {
-			// Most mach.Update errors already name the Machine.
-			if !strings.Contains(err.Error(), machine.ID) {
+			// Most mach.Update errors already say "machine <id>".
+			if machine.ID == "" || !strings.Contains(err.Error(), "machine "+machine.ID) {
 				err = fmt.Errorf("machine %s: %w", machine.ID, err)
 			}
 			errs = append(errs, err)
-			failed++
+			notUpdated++
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("failed to update %d of %d Machines:\n%w", failed, len(machines), errors.Join(errs...))
+		return fmt.Errorf("%d of %d Machines were not updated:\n%w", notUpdated, len(machines), errors.Join(errs...))
 	}
 
 	return nil
 }
 
 // movedButErr reports a failure after the app has already moved, so that the
-// user doesn't retry the move.
+// user doesn't retry the move. The cause is flattened to text on purpose: a
+// wrapped context.Canceled would make the CLI exit 127 without printing it, and
+// a wrapped DeadlineExceeded would exit 126, so this state always exits 1.
 func movedButErr(app *flaps.App, targetOrg *uiex.Organization, err error) error {
-	return fmt.Errorf("moved %s to %s, but %w", app.Name, targetOrg.Name, err)
+	return fmt.Errorf("moved %s to %s, but %s", app.Name, targetOrg.Name, err)
 }
