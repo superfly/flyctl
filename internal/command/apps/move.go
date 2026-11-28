@@ -2,7 +2,9 @@ package apps
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appsecrets"
@@ -138,23 +140,46 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.O
 	if oldStaticsBucket != nil {
 		releaseVersion := 0
 		if release, err := uiexutil.LatestRelease(ctx, uiexutil.ClientFromContext(ctx), app.Name); err != nil {
-			return fmt.Errorf("failed to find app's current release: %w", err)
+			return movedButErr(app, targetOrg, fmt.Errorf("failed to find app's current release: %w", err))
 		} else if release != nil {
 			releaseVersion = release.Version
 		}
 
 		err := statics.MoveBucket(ctx, oldStaticsBucket, oldOrg, app, targetOrg, releaseVersion, machines)
 		if err != nil {
-			return fmt.Errorf("failed to move statics bucket: %w", err)
+			return movedButErr(app, targetOrg, fmt.Errorf("failed to move statics bucket: %w", err))
 		}
 	}
 
 	minvers, err := appsecrets.GetMinvers(app.Name)
 	if err != nil {
-		return err
+		return movedButErr(app, targetOrg, fmt.Errorf("failed to read the app's secrets version: %w", err))
 	}
 
-	for _, machine := range machines {
+	if err := updateMovedMachines(ctx, app.Name, machines, skipHealthChecks, minvers); err != nil {
+		return movedButErr(app, targetOrg, err)
+	}
+	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", app.Name, targetOrg.Name)
+
+	return nil
+}
+
+// updateMovedMachines updates every Machine, even after a failure: the app has
+// already moved.
+func updateMovedMachines(ctx context.Context, appName string, machines []*fly.Machine, skipHealthChecks bool, minvers *uint64) error {
+	var (
+		errs       []error
+		notUpdated int
+	)
+	for i, machine := range machines {
+		// Stop on Ctrl-C rather than send updates that are bound to fail.
+		if ctx.Err() != nil {
+			skipped := len(machines) - i
+			notUpdated += skipped
+			errs = append(errs, fmt.Errorf("stopped before updating %d Machines: %w", skipped, context.Cause(ctx)))
+
+			break
+		}
 		input := &fly.LaunchMachineInput{
 			Name:              machine.Name,
 			Region:            machine.Region,
@@ -162,9 +187,26 @@ func runMoveAppOnMachines(ctx context.Context, app *flaps.App, targetOrg *uiex.O
 			SkipHealthChecks:  skipHealthChecks,
 			MinSecretsVersion: minvers,
 		}
-		mach.Update(ctx, app.Name, machine, input)
+		if err := mach.Update(ctx, appName, machine, input); err != nil {
+			// Most mach.Update errors already say "machine <id>".
+			if machine.ID == "" || !strings.Contains(err.Error(), "machine "+machine.ID) {
+				err = fmt.Errorf("machine %s: %w", machine.ID, err)
+			}
+			errs = append(errs, err)
+			notUpdated++
+		}
 	}
-	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", app.Name, targetOrg.Name)
+	if len(errs) > 0 {
+		return fmt.Errorf("%d of %d Machines were not updated:\n%w", notUpdated, len(machines), errors.Join(errs...))
+	}
 
 	return nil
+}
+
+// movedButErr reports a failure after the app has already moved, so that the
+// user doesn't retry the move. The cause is flattened to text on purpose: a
+// wrapped context.Canceled would make the CLI exit 127 without printing it, and
+// a wrapped DeadlineExceeded would exit 126, so this state always exits 1.
+func movedButErr(app *flaps.App, targetOrg *uiex.Organization, err error) error {
+	return fmt.Errorf("moved %s to %s, but %s", app.Name, targetOrg.Name, err)
 }
