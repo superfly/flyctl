@@ -23,7 +23,10 @@ func TestMultiRegionFromFlag(t *testing.T) {
 		{"spaces and trailing comma", " ord, iad,", []string{"iad", "ord"}, ""},
 		{"typo", "odr", nil, "region odr not found"},
 		{"typo next to a valid code", "ord,iadd", nil, "region iadd not found"},
-		{"excluded region is left out", "ord,lhr", []string{"ord"}, ""},
+		{"upper case", "ORD,Iad", []string{"iad", "ord"}, ""},
+		// Dropping it would remove an existing replica in fly redis update.
+		{"excluded region", "ord,lhr", nil, "region lhr can't be used for --replica-regions"},
+		{"only an excluded region", "lhr", nil, "region lhr can't be used for --replica-regions"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
