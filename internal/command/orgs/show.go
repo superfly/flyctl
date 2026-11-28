@@ -18,10 +18,12 @@ import (
 
 func newShow() *cobra.Command {
 	const (
-		long = `Shows information about an organization.
-Includes name, slug and type. Summarizes user permissions, DNS zones and
-associated member. Details full list of members and roles.
-`
+		long = `Show an organization's name, slug and type, your role in it, and its
+members with their roles.
+
+Pass the slug as an argument. If ` + "`FLY_ORG`" + ` is set, it's used instead and the
+argument is ignored. With neither, you pick an organization from a list in a
+terminal; without a terminal, one of them is required.`
 		short = "Show information about an organization"
 		usage = "show [slug]"
 	)

@@ -20,8 +20,22 @@ import (
 
 func newSet() (cmd *cobra.Command) {
 	const (
-		long  = `Set one or more encrypted secrets for an application`
-		short = long
+		long = `Set one or more encrypted secrets for an app, passed as NAME=VALUE
+arguments. Use NAME=- to read that secret's value from standard input
+(piped input only, up to 64 KiB).
+
+After saving the secrets, the command updates the app's Machines that Fly
+Launch manages (not ones made with ` + "`fly machine run`" + `), each with its current
+configuration and image rather than your local fly.toml, so they pick up the
+new values. Running Machines are restarted and stopped ones stay stopped,
+unless the app's deployed configuration uses the bluegreen strategy, which
+replaces the Machines. With ` + "`--detach`" + `, it doesn't wait for health checks.
+If the app has never been deployed and has no Machines, the secrets are
+saved for the first deploy.
+
+With ` + "`--stage`" + `, the secrets are saved but no Machines are updated; run
+` + "`fly secrets deploy`" + ` or ` + "`fly deploy`" + ` to apply them.`
+		short = "Set one or more encrypted secrets for an app"
 		usage = "set [flags] NAME=VALUE NAME=VALUE ..."
 	)
 
