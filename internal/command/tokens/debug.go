@@ -15,11 +15,13 @@ import (
 
 func newDebug() *cobra.Command {
 	const (
-		short = "Debug Fly.io API tokens"
-		long  = `Decode and print a Fly.io API token. The token to be
-				debugged may either be passed in the -t argument or in FLY_API_TOKEN.
-				See https://github.com/superfly/macaroon for details Fly.io macaroon
-				tokens.`
+		short = "Decode and print a Fly.io API token"
+		long  = `Decode a Fly.io API token and print its contents, including caveats, as
+JSON. This happens locally, with no API call.
+
+The token to decode is the one fly is using, normally passed with ` + "`-t`" + `
+or ` + "`FLY_API_TOKEN`" + `. See https://github.com/superfly/macaroon for details
+on Fly.io macaroon tokens.`
 		usage = "debug"
 	)
 
