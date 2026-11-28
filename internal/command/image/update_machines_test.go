@@ -33,13 +33,15 @@ func TestUpdateImageSkipsUnchangedMachines(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		machines []*fly.Machine
+		yes      bool
 		wantErr  string
 		wantOut  string
 	}{
-		{"all current", machines(current, current), "", "No changes to apply"},
+		{"all current", machines(current, current), false, "", "No changes to apply"},
+		{"all current with yes", machines(current, current), true, "", "No changes to apply"},
 		// Getting past the first Machine shows as the prompt failing, since
 		// the test has no terminal.
-		{"one outdated", machines(current, "registry.fly.io/test-app:old"), "yes flag must be specified", ""},
+		{"one outdated", machines(current, "registry.fly.io/test-app:old"), false, "yes flag must be specified", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client := &mock.FlapsClient{
@@ -48,9 +50,13 @@ func TestUpdateImageSkipsUnchangedMachines(t *testing.T) {
 					return &fly.MachineLease{Data: &fly.MachineLeaseData{Nonce: "nonce"}}, nil
 				},
 				ReleaseLeaseFunc: func(context.Context, string, string, string) error { return nil },
+				UpdateFunc: func(context.Context, string, fly.LaunchMachineInput, string) (*fly.Machine, error) {
+					t.Fatal("unexpected call to Update on FlapsClient")
+					return nil, nil
+				},
 			}
 			flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			flags.Bool("yes", false, "")
+			flags.Bool("yes", tc.yes, "")
 			flags.Bool("skip-health-checks", false, "")
 			flags.String("image", current, "")
 			io, _, out, _ := iostreams.Test()
