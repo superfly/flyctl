@@ -29,6 +29,14 @@ func Finish() {
 		return
 	}
 
+	// go-harlog leaves Log.Entries nil until the first request is recorded.
+	// A nil slice marshals to JSON null, but HAR 1.2 requires entries to be an
+	// array. Commands that make no traced request would otherwise write a HAR
+	// that importers such as Chrome refuse to load.
+	if har.Container.Log.Entries == nil {
+		har.Container.Log.Entries = []*harlog.Entry{}
+	}
+
 	harJson, err := json.MarshalIndent(har.Container, "", "    ")
 	if err != nil {
 		terminal.Warnf("error serializing HAR: %v\n", err)
