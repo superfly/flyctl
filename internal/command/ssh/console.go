@@ -91,7 +91,9 @@ func quiet(ctx context.Context) bool {
 	return flag.GetBool(ctx, "quiet")
 }
 
-func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *flaps.App, console bool) (addr string, container string, err error) {
+func lookupAddressAndContainer(ctx context.Context, cli interface {
+	WaitForDNS(context.Context, agent.Dialer, string, string, string) error
+}, dialer agent.Dialer, app *flaps.App, console bool) (addr string, container string, err error) {
 	selectedMachine, err := selectMachine(ctx, app)
 	if err != nil {
 		return "", "", err
@@ -116,7 +118,7 @@ func lookupAddressAndContainer(ctx context.Context, cli *agent.Client, dialer ag
 
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !ip.IsV6(addr) {
-		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
+		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, flapsutil.NetworkName(app)); err != nil {
 			captureError(ctx, err, app)
 
 			return "", "", tracing.WithWorkflowErrorCode(errors.Wrapf(err, "host unavailable at %s", addr), tracing.WorkflowErrorSSHDNS)
