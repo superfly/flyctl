@@ -27,8 +27,11 @@ type visibleCommand struct {
 	cmd  *cobra.Command
 }
 
-// tree is built once in TestMain.
-var tree []visibleCommand
+// rootCmd and tree, its visible commands, are built once in TestMain.
+var (
+	rootCmd *cobra.Command
+	tree    []visibleCommand
+)
 
 // TestMain builds the command tree once, with HOME and FLY_CONFIG_DIR pointed
 // at a temporary directory: root.New loads config from disk, and the tests
@@ -45,7 +48,8 @@ func TestMain(m *testing.M) {
 		os.Setenv("HOME", dir)
 		os.Setenv("FLY_CONFIG_DIR", dir+"/.fly")
 
-		tree = walkTree(New())
+		rootCmd = New()
+		tree = walkTree(rootCmd)
 
 		return m.Run()
 	}())
@@ -80,11 +84,12 @@ func visibleCommands(t *testing.T) []visibleCommand {
 }
 
 // rule is one check over the command tree. inScope picks the commands the
-// rule applies to (nil means every visible command); pass reports whether a
-// command in scope follows the rule.
+// rule applies to (nil means every visible command); problem says what a
+// command in scope has to change to follow the rule, or returns "" if it
+// already does.
 type rule struct {
 	inScope func(c *cobra.Command) bool
-	pass    func(c *cobra.Command) bool
+	problem func(c *cobra.Command) string
 }
 
 // checkRule compares the commands that break r with allowlist. A failing
@@ -113,11 +118,11 @@ func checkRule(t *testing.T, allowlist []string, r rule) {
 			continue
 		}
 
-		ok := r.pass(vc.cmd)
+		problem := r.problem(vc.cmd)
 		switch {
-		case !ok && !allowed[vc.path]:
-			newFailures = append(newFailures, vc.path)
-		case ok && allowed[vc.path]:
+		case problem != "" && !allowed[vc.path]:
+			newFailures = append(newFailures, fmt.Sprintf("%q: %s", vc.path, problem))
+		case problem == "" && allowed[vc.path]:
 			t.Errorf("%q now passes this rule: delete it from the allowlist", vc.path)
 		}
 	}
@@ -129,19 +134,89 @@ func checkRule(t *testing.T, allowlist []string, r rule) {
 	}
 
 	sort.Strings(newFailures)
-	for _, p := range newFailures {
-		t.Errorf("%q breaks this rule", p)
+	for _, failure := range newFailures {
+		t.Error(failure)
 	}
 }
 
 func TestCommandTree_HasShortDescription(t *testing.T) {
-	checkRule(t, nil, rule{pass: func(c *cobra.Command) bool {
-		return strings.TrimSpace(c.Short) != ""
+	checkRule(t, nil, rule{problem: func(c *cobra.Command) string {
+		if strings.TrimSpace(c.Short) == "" {
+			return "add a Short"
+		}
+
+		return ""
 	}})
 }
 
-// destructiveVerbs are words that, in a command's name or one of its
-// aliases, mark it as destroying or detaching something.
+var (
+	urlPattern  = regexp.MustCompile(`https?://\S+`)
+	wordPattern = regexp.MustCompile(`[a-z0-9]+(?:['’_-][a-z0-9]+)*`)
+)
+
+// words lowercases s and splits it into words, dropping punctuation and URLs.
+// A contraction, a flag or a hyphenated word counts as one word.
+func words(s string) []string {
+	return wordPattern.FindAllString(urlPattern.ReplaceAllString(strings.ToLower(s), " "), -1)
+}
+
+// extraWords counts the words in long that aren't accounted for by short.
+func extraWords(long, short string) int {
+	inShort := map[string]int{}
+	for _, w := range words(short) {
+		inShort[w]++
+	}
+
+	extra := 0
+	for _, w := range words(long) {
+		if inShort[w] > 0 {
+			inShort[w]--
+		} else {
+			extra++
+		}
+	}
+
+	return extra
+}
+
+// minExtraLongWords is how many words a Long must add beyond its Short.
+const minExtraLongWords = 8
+
+// A Long that only restates Short gives an agent reading --help nothing more,
+// so it must add at least a sentence of its own.
+func TestCommandTree_HasLongDescription(t *testing.T) {
+	checkRule(t, missingLongAllowlist, rule{problem: func(c *cobra.Command) string {
+		if extra := extraWords(c.Long, c.Short); extra < minExtraLongWords {
+			return fmt.Sprintf("Long adds %d words to Short, want at least %d (URLs don't count)", extra, minExtraLongWords)
+		}
+
+		return ""
+	}})
+}
+
+func TestExtraWords(t *testing.T) {
+	const short = "Show the one and only status of a widget, in some detail"
+	for _, tc := range []struct {
+		name, long string
+		want       int
+	}{
+		{"empty", "", 0},
+		{"same words", "show the ONE and only status of a widget in some detail.", 0},
+		{"short plus a link", short + "\n\nSee https://fly.io/docs/reference/configuration/#the-widget-section", 1},
+		{"short plus a sentence", short + ". Widgets that don't exist are left out of --json output.", 10},
+		{"mostly new", "Print its current state, size and region for each process group", 10},
+		{"repeats a word of short", short + " status status", 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := extraWords(tc.long, short); got != tc.want {
+				t.Errorf("got %d, want %d", got, tc.want)
+			}
+		})
+	}
+}
+
+// destructiveVerbs are words that, in the name or an alias of a command or of
+// one of its parents, mark it as destroying or detaching something.
 var destructiveVerbs = map[string]bool{
 	"destroy": true, "delete": true, "remove": true, "rm": true,
 	"revoke": true, "release": true, "unset": true, "reset": true,
@@ -149,10 +224,12 @@ var destructiveVerbs = map[string]bool{
 }
 
 func isDestructive(c *cobra.Command) bool {
-	for _, name := range append([]string{c.Name()}, c.Aliases...) {
-		for _, word := range strings.Split(name, "-") {
-			if destructiveVerbs[word] {
-				return true
+	for ; c.HasParent(); c = c.Parent() {
+		for _, name := range append([]string{c.Name()}, c.Aliases...) {
+			for _, word := range strings.Split(name, "-") {
+				if destructiveVerbs[word] {
+					return true
+				}
 			}
 		}
 	}
@@ -160,12 +237,30 @@ func isDestructive(c *cobra.Command) bool {
 	return false
 }
 
+// offersFlag reports whether c accepts the flag, from itself or a parent, and
+// shows it in --help. It uses Flag rather than Flags().Lookup, which only sees
+// a persistent flag once something else has made cobra merge it.
+func offersFlag(c *cobra.Command, name string) bool {
+	f := c.Flag(name)
+
+	return f != nil && !f.Hidden && f.Deprecated == ""
+}
+
+// missingFlag returns the problem of not offering the flag, or "".
+func missingFlag(c *cobra.Command, name string) string {
+	if offersFlag(c, name) {
+		return ""
+	}
+
+	return fmt.Sprintf("add a visible --%s flag", name)
+}
+
 // A destructive command must offer --yes, so scripts and agents can always
 // pass it, whether or not the command prompts today.
 func TestCommandTree_DestructiveCommandsHaveYes(t *testing.T) {
 	checkRule(t, destructiveWithoutYesAllowlist, rule{
 		inScope: func(c *cobra.Command) bool { return c.Runnable() && isDestructive(c) },
-		pass:    func(c *cobra.Command) bool { return c.Flags().Lookup(flagnames.Yes) != nil },
+		problem: func(c *cobra.Command) string { return missingFlag(c, flagnames.Yes) },
 	})
 }
 
@@ -174,7 +269,7 @@ func TestCommandTree_DestructiveCommandsHaveYes(t *testing.T) {
 func TestCommandTree_HasJSONOutput(t *testing.T) {
 	checkRule(t, missingJSONAllowlist, rule{
 		inScope: func(c *cobra.Command) bool { return c.Runnable() },
-		pass:    func(c *cobra.Command) bool { return c.Flags().Lookup(flagnames.JSONOutput) != nil },
+		problem: func(c *cobra.Command) string { return missingFlag(c, flagnames.JSONOutput) },
 	})
 }
 
@@ -188,7 +283,7 @@ func TestCommandTree_StandardFlagsAreUniform(t *testing.T) {
 
 	for _, vc := range visibleCommands(t) {
 		for name, short := range standard {
-			f := vc.cmd.Flags().Lookup(name)
+			f := vc.cmd.Flag(name)
 			if f == nil {
 				continue
 			}
@@ -204,15 +299,80 @@ func TestCommandTree_StandardFlagsAreUniform(t *testing.T) {
 
 var kebabCase = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
+// nonKebabFlags returns the problem of c's own flags with names that aren't
+// kebab-case, or "".
+func nonKebabFlags(c *cobra.Command) string {
+	var names []string
+	c.LocalFlags().VisitAll(func(f *pflag.Flag) {
+		if !f.Hidden && f.Deprecated == "" && !kebabCase.MatchString(f.Name) {
+			names = append(names, "--"+f.Name)
+		}
+	})
+	if len(names) == 0 {
+		return ""
+	}
+
+	return "rename to kebab-case: " + strings.Join(names, ", ")
+}
+
 func TestCommandTree_FlagNamesAreKebabCase(t *testing.T) {
-	checkRule(t, nonKebabFlagAllowlist, rule{pass: func(c *cobra.Command) bool {
-		ok := true
-		c.LocalFlags().VisitAll(func(f *pflag.Flag) {
-			if !f.Hidden && f.Deprecated == "" && !kebabCase.MatchString(f.Name) {
-				ok = false
+	checkRule(t, nonKebabFlagAllowlist, rule{problem: nonKebabFlags})
+
+	// The tree leaves out the root command, and a command's local flags leave
+	// out those it inherits, so check the global flags here.
+	if problem := nonKebabFlags(rootCmd); problem != "" {
+		t.Errorf("global flags: %s", problem)
+	}
+}
+
+// The rules must see a flag inherited from a parent, whichever test runs
+// first, and must not be satisfied by a flag --help doesn't show.
+func TestOffersFlag(t *testing.T) {
+	build := func(change func(parent, child *cobra.Command)) *cobra.Command {
+		parent, child := &cobra.Command{Use: "parent"}, &cobra.Command{Use: "child"}
+		parent.AddCommand(child)
+		change(parent, child)
+
+		return child
+	}
+
+	for _, tc := range []struct {
+		name   string
+		want   bool
+		change func(parent, child *cobra.Command)
+	}{
+		{"none", false, func(_, _ *cobra.Command) {}},
+		{"own", true, func(_, child *cobra.Command) { child.Flags().Bool("json", false, "") }},
+		{"inherited", true, func(parent, _ *cobra.Command) { parent.PersistentFlags().Bool("json", false, "") }},
+		{"parent's own", false, func(parent, _ *cobra.Command) { parent.Flags().Bool("json", false, "") }},
+		{"hidden", false, func(_, child *cobra.Command) {
+			child.Flags().Bool("json", false, "")
+			_ = child.Flags().MarkHidden("json")
+		}},
+		{"deprecated", false, func(_, child *cobra.Command) {
+			child.Flags().Bool("json", false, "")
+			_ = child.Flags().MarkDeprecated("json", "gone")
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := offersFlag(build(tc.change), "json"); got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
 
-		return ok
-	}})
+func TestIsDestructiveCoversSubcommands(t *testing.T) {
+	root, revoke := &cobra.Command{Use: "clear"}, &cobra.Command{Use: "revoke"}
+	supplied, list := &cobra.Command{Use: "supplied"}, &cobra.Command{Use: "list"}
+	root.AddCommand(revoke, list)
+	revoke.AddCommand(supplied)
+
+	if !isDestructive(supplied) {
+		t.Error("a subcommand of revoke isn't destructive")
+	}
+	// The root's own name doesn't count.
+	if isDestructive(list) {
+		t.Error("list is destructive")
+	}
 }

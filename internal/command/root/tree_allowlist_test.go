@@ -4,7 +4,10 @@ package root
 // when you fix the command; the test fails if a listed command now passes.
 // Never add an entry for a new command.
 
-// Destructive commands with no --yes. Some may never prompt; add --yes anyway so scripts can pass it uniformly, or move the command out of this list with a comment saying why it is exempt.
+// Commands whose Long is empty or only repeats Short.
+var missingLongAllowlist []string
+
+// Destructive commands with no --yes. Some may never prompt; add --yes anyway so scripts can pass it uniformly.
 var destructiveWithoutYesAllowlist = []string{
 	"consul detach",
 	"ips release",
@@ -20,6 +23,7 @@ var destructiveWithoutYesAllowlist = []string{
 	"secrets unset",
 	"skills remove",
 	"tokens revoke",
+	"tokens revoke supplied",
 	"wireguard remove",
 	"wireguard reset",
 }
